@@ -1,10 +1,15 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
+import os
 
-DATABASE_URL = "sqlite:///./castZone.db"
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+
+
+if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL
 )
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
