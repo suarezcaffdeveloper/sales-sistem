@@ -2,9 +2,10 @@ from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
 from argon2 import PasswordHasher, exceptions as argon2_exceptions
+import os
 
 
-SECRET_KEY = "supersecretkey"
+SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

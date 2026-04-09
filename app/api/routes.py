@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, logger
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.schemas.product import ProductCreate, ProductResponse
@@ -50,11 +50,9 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = get_user_by_username(db, user.username)
 
-    if not db_user:
-        raise HTTPException(status_code=400, detail="Usuario no existe")
-
-    if not verify_password(user.password, db_user.password):
-        raise HTTPException(status_code=400, detail="Password incorrecto")
+    # Mensaje genérico (seguridad)
+    if not db_user or not verify_password(user.password, db_user.password):
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
     token = create_access_token({"sub": db_user.username})
 
@@ -172,7 +170,7 @@ def create_new_sale(sale: SaleCreate, db: Session = Depends(get_db)):
     try:
         return create_sale(db, sale)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
 
 @protected_router.get("/sales/pending-debts")
 def get_pending_debts_endpoint(db: Session = Depends(get_db)):
@@ -184,7 +182,7 @@ def get_sale(sale_id: int, db: Session = Depends(get_db)):
     try:
         return get_sale_details(db, sale_id)
     except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
 
 @protected_router.get("/sales")
 def list_sales(db: Session = Depends(get_db)) -> list:
@@ -210,7 +208,7 @@ def create_new_purchase(purchase: PurchaseCreate, db: Session = Depends(get_db))
     try:
         return create_purchase(db, purchase)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
 
 @protected_router.get("/purchases/{purchase_id}")
 def get_purchase(purchase_id: int, db: Session = Depends(get_db)):
@@ -240,14 +238,14 @@ def open_box(box: DailyBoxCreate, db: Session = Depends(get_db)):
     try:
         return open_daily_box(db, box.opening_balance, user_id=None)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
 
 @protected_router.post("/daily-box/close", response_model=DailyBoxResponse)
 def close_box(box: DailyBoxClose, db: Session = Depends(get_db)):
     try:
         return close_daily_box(db, box.closing_balance)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
 
 @protected_router.get("/daily-box/current")
 def get_current_box(db: Session = Depends(get_db)):
@@ -378,7 +376,7 @@ def create_payment_endpoint(payment: PaymentCreate, db: Session = Depends(get_db
     try:
         return create_payment(db, payment)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
 
 @protected_router.get("/payments/{payment_id}", response_model=PaymentResponse)
 def get_payment_endpoint(payment_id: int, db: Session = Depends(get_db)):
@@ -437,7 +435,7 @@ def export_sales_excel(
             headers={"Content-Disposition": "attachment; filename=reporte_ventas.xlsx"}
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
 
 @protected_router.get("/reports/daily")
 def get_daily_report(date: Optional[str] = None, db: Session = Depends(get_db)):
@@ -452,7 +450,7 @@ def get_daily_report(date: Optional[str] = None, db: Session = Depends(get_db)):
             headers={"Content-Disposition": "attachment; filename=reporte_diario.pdf"}
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
 
 @protected_router.get("/reports/weekly")
 def get_weekly_report(db: Session = Depends(get_db)):
@@ -466,7 +464,7 @@ def get_weekly_report(db: Session = Depends(get_db)):
             headers={"Content-Disposition": "attachment; filename=reporte_semanal.pdf"}
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
 
 @protected_router.get("/reports/monthly")
 def get_monthly_report(db: Session = Depends(get_db)):
@@ -480,4 +478,4 @@ def get_monthly_report(db: Session = Depends(get_db)):
             headers={"Content-Disposition": "attachment; filename=reporte_mensual.pdf"}
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
