@@ -6,7 +6,6 @@ from app.api.routes import protected_router, public_router
 from app.db.database import engine, Base, migrate_add_daily_box_id_if_missing
 from app.db.migrations import run_all_migrations
 from pathlib import Path
-from fastapi.staticfiles import StaticFiles
 from app.models import Product, Customer, Supplier, Sale, SaleItem, User, DailyBox, Purchase, PurchaseItem, Payment
 
 app = FastAPI(title="CastZONE API")
@@ -25,7 +24,6 @@ class CSPMiddleware(BaseHTTPMiddleware):
 
         return response
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
 # CORS - Permitir solicitudes desde cualquier origen
 app.add_middleware(
     CORSMiddleware,
