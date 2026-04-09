@@ -5,7 +5,8 @@ from argon2 import PasswordHasher, exceptions as argon2_exceptions
 import os
 
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+# Usar variable de entorno si existe, si no usar una clave por defecto para desarrollo
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production-12345678")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

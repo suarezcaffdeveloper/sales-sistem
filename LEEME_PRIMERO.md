@@ -1,6 +1,48 @@
 # ✅ SISTEMA PROFESIONAL - LISTO PARA USAR
 
-## 🎯 ¿Qué Se Ha Implementado?
+## � IMPORTANTE - Session 10g: Sistema Multi-Tenant 🏢
+
+CastZone ha sido actualizado a **arquitectura multi-tenant por compañía**. Esto significa:
+
+- ✅ **Cada compañía es completamente independiente**
+- ✅ **Un usuario = Una compañía**
+- ✅ **Aislamiento total de datos por compañía**
+
+**Para empezar rápido:**
+- 👉 Lee: **INICIO_RAPIDO_MULTITENANT.md** (2 minutos)
+- 📖 Guía completa: **GUIA_MULTITENANT.md** (20 minutos)
+
+**Resumen de registro:**
+```bash
+# Opción 1: Crear usuario con nueva compañía (RECOMENDADO)
+curl -X POST http://localhost:8000/api/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "password": "MyPassword123",
+    "company_name": "Mi Tienda"
+  }'
+
+# Opción 2: Agregar usuario a compañía existente
+curl -X POST http://localhost:8000/api/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "vendedor",
+    "password": "MyPassword456",
+    "company_id": 1
+  }'
+```
+
+**Login funciona igual que antes:**
+```bash
+curl -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "MyPassword123"}'
+```
+
+---
+
+## �🎯 ¿Qué Se Ha Implementado?
 
 Se han agregado **3 módulos profesionales** sin romper nada existente:
 

@@ -6,19 +6,24 @@ from app.models.sale_item import SaleItem
 from datetime import datetime, date as date_type
 from sqlalchemy import func, and_
 
-def open_daily_box(db: Session, opening_balance: float = 0.0, user_id: int = None):
+def open_daily_box(db: Session, company_id: int, opening_balance: float = 0.0, user_id: int = None):
     """Abre una caja para el día actual"""
     today = datetime.utcnow().strftime("%Y-%m-%d")
     
-    # Verificar si ya existe una caja ABIERTA hoy
+    # Verificar si ya existe una caja ABIERTA hoy para esta compañía
     existing_box = db.query(DailyBox).filter(
-        and_(DailyBox.date == today, DailyBox.status == "open")
+        and_(
+            DailyBox.date == today,
+            DailyBox.status == "open",
+            DailyBox.company_id == company_id
+        )
     ).first()
     if existing_box:
         raise Exception(f"Ya existe una caja abierta para hoy ({today})")
     
     # Crear nueva caja
     new_box = DailyBox(
+        company_id=company_id,
         date=today,
         opening_balance=opening_balance,
         status="open",
@@ -32,13 +37,17 @@ def open_daily_box(db: Session, opening_balance: float = 0.0, user_id: int = Non
     return new_box
 
 
-def close_daily_box(db: Session, closing_balance: float):
+def close_daily_box(db: Session, company_id: int, closing_balance: float):
     """Cierra la caja del día actual"""
     today = datetime.utcnow().strftime("%Y-%m-%d")
     
-    # Buscar caja abierta del día
+    # Buscar caja abierta del día para esta compañía
     box = db.query(DailyBox).filter(
-        and_(DailyBox.date == today, DailyBox.status == "open")
+        and_(
+            DailyBox.date == today,
+            DailyBox.status == "open",
+            DailyBox.company_id == company_id
+        )
     ).first()
     
     if not box:
@@ -55,19 +64,28 @@ def close_daily_box(db: Session, closing_balance: float):
     return box
 
 
-def get_current_daily_box(db: Session):
+def get_current_daily_box(db: Session, company_id: int):
     """Obtiene la caja abierta actualmente (hoy)"""
     today = datetime.utcnow().strftime("%Y-%m-%d")
     
     box = db.query(DailyBox).filter(
-        and_(DailyBox.date == today, DailyBox.status == "open")
+        and_(
+            DailyBox.date == today,
+            DailyBox.status == "open",
+            DailyBox.company_id == company_id
+        )
     ).first()
     return box
 
 
-def get_daily_box_by_date(db: Session, box_date: str):
+def get_daily_box_by_date(db: Session, box_date: str, company_id: int):
     """Obtiene los detalles completos de una caja por fecha"""
-    box = db.query(DailyBox).filter(DailyBox.date == box_date).first()
+    box = db.query(DailyBox).filter(
+        and_(
+            DailyBox.date == box_date,
+            DailyBox.company_id == company_id
+        )
+    ).first()
     
     if not box:
         raise Exception(f"No existe caja para la fecha {box_date}")
@@ -78,7 +96,11 @@ def get_daily_box_by_date(db: Session, box_date: str):
     date_end = datetime.strptime(box_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
     
     sales_data = db.query(Sale).filter(
-        and_(Sale.created_at >= date_start, Sale.created_at <= date_end)
+        and_(
+            Sale.created_at >= date_start,
+            Sale.created_at <= date_end,
+            Sale.company_id == company_id
+        )
     ).all()
     
     total_sales = sum(s.total_amount for s in sales_data)
@@ -106,15 +128,25 @@ def get_daily_box_by_date(db: Session, box_date: str):
     }
 
 
-def get_daily_box_details_by_id(db: Session, box_id: int):
+def get_daily_box_details_by_id(db: Session, box_id: int, company_id: int):
     """Obtiene los detalles completos de una caja por ID (filtrado por daily_box_id en ventas)"""
-    box = db.query(DailyBox).filter(DailyBox.id == box_id).first()
+    box = db.query(DailyBox).filter(
+        and_(
+            DailyBox.id == box_id,
+            DailyBox.company_id == company_id
+        )
+    ).first()
     
     if not box:
         raise Exception(f"No existe caja con ID {box_id}")
     
     # Obtener todas las ventas asociadas a esta caja
-    sales_data = db.query(Sale).filter(Sale.daily_box_id == box_id).all()
+    sales_data = db.query(Sale).filter(
+        and_(
+            Sale.daily_box_id == box_id,
+            Sale.company_id == company_id
+        )
+    ).all()
     
     total_sales = sum(s.total_amount for s in sales_data)
     sale_count = len(sales_data)
@@ -141,15 +173,17 @@ def get_daily_box_details_by_id(db: Session, box_id: int):
     }
 
 
-def get_all_daily_boxes(db: Session):
+def get_all_daily_boxes(db: Session, company_id: int):
     """Obtiene todas las cajas ordenadas por fecha descendente"""
     try:
-        boxes = db.query(DailyBox).order_by(DailyBox.date.desc()).all()
+        boxes = db.query(DailyBox).filter(
+            DailyBox.company_id == company_id
+        ).order_by(DailyBox.date.desc()).all()
         
         result = []
         for box in boxes:
             try:
-                box_detail = get_daily_box_by_date(db, box.date)
+                box_detail = get_daily_box_by_date(db, box.date, company_id)
                 result.append(box_detail)
             except Exception as e:
                 # Si hay error en una caja, crear una respuesta básica sin ventas

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.api.routes import protected_router, public_router
 from app.db.database import engine, Base, migrate_add_daily_box_id_if_missing
+from app.db.migrations import run_all_migrations
 from pathlib import Path
 
 from app.models import Product, Customer, Supplier, Sale, SaleItem, User, DailyBox, Purchase, PurchaseItem, Payment
@@ -20,8 +21,9 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
-# Ejecutar migración automática para daily_box_id
+# Ejecutar migraciones automáticas
 migrate_add_daily_box_id_if_missing()
+run_all_migrations()
 
 # Incluir PRIMERO el router de API
 # Router público (sin autenticación)

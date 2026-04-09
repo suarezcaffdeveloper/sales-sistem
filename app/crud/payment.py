@@ -4,15 +4,18 @@ from app.models.sale import Sale
 from app.schemas.payment import PaymentCreate
 
 
-def create_payment(db: Session, payment_data: PaymentCreate) -> Payment:
+def create_payment(db: Session, payment_data: PaymentCreate, company_id: int) -> Payment:
     """
     Registra un pago para una venta.
     Actualiza paid_amount, debt_amount y status de la venta.
     """
     print(f"\n💳 Intentando crear pago: Venta {payment_data.sale_id}, Monto ${payment_data.amount}")
     
-    # Validar que la venta existe
-    sale = db.query(Sale).filter(Sale.id == payment_data.sale_id).first()
+    # Validar que la venta existe y pertenece a la compañía
+    sale = db.query(Sale).filter(
+        Sale.id == payment_data.sale_id,
+        Sale.company_id == company_id
+    ).first()
     
     if not sale:
         raise Exception(f"Venta {payment_data.sale_id} no existe")
@@ -27,6 +30,7 @@ def create_payment(db: Session, payment_data: PaymentCreate) -> Payment:
     
     # Crear pago
     payment = Payment(
+        company_id=company_id,
         sale_id=payment_data.sale_id,
         amount=payment_data.amount,
         payment_method=payment_data.payment_method
@@ -63,25 +67,31 @@ def get_payment(db: Session, payment_id: int) -> Payment:
     return payment
 
 
-def get_sale_payments(db: Session, sale_id: int) -> list:
+def get_sale_payments(db: Session, sale_id: int, company_id: int) -> list:
     """Obtiene todos los pagos de una venta"""
-    payments = db.query(Payment).filter(Payment.sale_id == sale_id).all()
+    payments = db.query(Payment).filter(
+        Payment.sale_id == sale_id,
+        Payment.company_id == company_id
+    ).all()
     return payments
 
 
-def get_all_payments(db: Session, limit: int = 100) -> list:
+def get_all_payments(db: Session, company_id: int, limit: int = 100) -> list:
     """Obtiene todos los pagos registrados"""
     from sqlalchemy import desc
-    payments = db.query(Payment).order_by(desc(Payment.created_at)).limit(limit).all()
+    payments = db.query(Payment).filter(
+        Payment.company_id == company_id
+    ).order_by(desc(Payment.created_at)).limit(limit).all()
     return payments
 
 
-def get_pending_payments_total(db: Session) -> float:
+def get_pending_payments_total(db: Session, company_id: int) -> float:
     """Obtiene el total de pagos pendientes en el sistema"""
     from sqlalchemy import func
     
     result = db.query(func.sum(Sale.debt_amount)).filter(
-        Sale.debt_amount > 0
+        Sale.debt_amount > 0,
+        Sale.company_id == company_id
     ).scalar()
     
     return result if result else 0

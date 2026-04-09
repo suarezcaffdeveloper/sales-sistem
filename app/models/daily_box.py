@@ -7,7 +7,8 @@ class DailyBox(Base):
     __tablename__ = "daily_boxes"
 
     id = Column(Integer, primary_key=True, index=True)
-    date = Column(String, unique=True, index=True)  # Formato: YYYY-MM-DD
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    date = Column(String, index=True)  # Formato: YYYY-MM-DD
     opened_at = Column(DateTime, default=datetime.utcnow)
     closed_at = Column(DateTime, nullable=True)
     opening_balance = Column(Float, default=0.0)
@@ -16,4 +17,5 @@ class DailyBox(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     
     # Relaciones
+    company = relationship("Company", back_populates="daily_boxes")
     user = relationship("User")

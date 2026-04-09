@@ -6,7 +6,7 @@ from app.schemas.sale import SaleCreate
 from sqlalchemy import desc
 from app.crud.daily_box import get_current_daily_box
 
-def create_sale(db: Session, sale_data: SaleCreate):
+def create_sale(db: Session, sale_data: SaleCreate, company_id: int):
     total_amount = 0
     sale_items = []
     
@@ -15,7 +15,10 @@ def create_sale(db: Session, sale_data: SaleCreate):
 
     # 🔍 1. Validar stock + calcular total
     for item in sale_data.items:
-        product = db.query(Product).filter(Product.id == item.product_id).first()
+        product = db.query(Product).filter(
+            Product.id == item.product_id,
+            Product.company_id == company_id
+        ).first()
 
         if not product:
             raise Exception(f"Producto {item.product_id} no existe")
@@ -36,11 +39,12 @@ def create_sale(db: Session, sale_data: SaleCreate):
         raise Exception(f"El pago inicial no puede exceder el total de la venta")
 
     # Obtener caja diaria activa
-    current_box = get_current_daily_box(db)
+    current_box = get_current_daily_box(db, company_id)
     daily_box_id = current_box.id if current_box else None
 
     # 💾 2. Crear venta - SIEMPRE con pagado=0, será actualizado por el pago después
     sale = Sale(
+        company_id=company_id,
         customer_id=sale_data.customer_id,
         daily_box_id=daily_box_id,
         total_amount=float(total_amount),
@@ -79,11 +83,14 @@ def create_sale(db: Session, sale_data: SaleCreate):
     return sale
 
 
-def get_sale_details(db: Session, sale_id: int):
+def get_sale_details(db: Session, sale_id: int, company_id: int):
     """Obtiene los detalles completos de una venta para el ticket/factura"""
     print(f"\n📋 Obteniendo detalles de venta {sale_id}")
     
-    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    sale = db.query(Sale).filter(
+        Sale.id == sale_id,
+        Sale.company_id == company_id
+    ).first()
     
     if not sale:
         raise Exception(f"Venta {sale_id} no existe")
@@ -138,9 +145,11 @@ def get_sale_details(db: Session, sale_id: int):
     return result
 
 
-def get_all_sales(db: Session):
+def get_all_sales(db: Session, company_id: int):
     """Obtiene todas las ventas ordenadas por fecha (más recientes primero)"""
-    sales = db.query(Sale).order_by(desc(Sale.created_at)).all()
+    sales = db.query(Sale).filter(
+        Sale.company_id == company_id
+    ).order_by(desc(Sale.created_at)).all()
     
     sales_list = []
     for sale in sales:

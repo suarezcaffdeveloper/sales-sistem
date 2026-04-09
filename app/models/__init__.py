@@ -1,3 +1,4 @@
+from .company import Company
 from .product import Product
 from .supplier import Supplier
 from .customer import Customer

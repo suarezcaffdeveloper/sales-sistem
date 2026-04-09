@@ -10,7 +10,10 @@ class Supplier(Base):
     email = Column(String, nullable=True)
     phone = Column(String, nullable=True)
     address = Column(String, nullable=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
 
+    # Relationships
+    company = relationship("Company", back_populates="suppliers")
     products = relationship("Product", back_populates="supplier")
     purchases = relationship("Purchase", back_populates="supplier")
     

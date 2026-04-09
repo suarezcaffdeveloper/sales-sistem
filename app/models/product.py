@@ -13,6 +13,9 @@ class Product(Base):
     description = Column(String, nullable=True)
     brand = Column(String, nullable=True)
     category = Column(String, nullable=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
     
+    # Relationships
+    company = relationship("Company", back_populates="products")
     supplier = relationship("Supplier", back_populates="products")

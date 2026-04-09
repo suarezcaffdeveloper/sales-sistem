@@ -11,6 +11,14 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 Base = declarative_base()
 
+def get_db():
+    """Dependencia para obtener la sesión de base de datos"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 def migrate_add_daily_box_id_if_missing():
     """Verifica si la columna daily_box_id existe en la tabla sales, y la agrega si no existe"""
     try:

@@ -3,18 +3,27 @@ from app.models.customer import Customer
 from app.schemas.customer import CustomerCreate
 
 
-def create_customer(db: Session, customer_data: CustomerCreate):
-    db_customer = Customer(**customer_data.model_dump())
+def create_customer(db: Session, customer_data: CustomerCreate, company_id: int):
+    db_customer = Customer(**customer_data.model_dump(), company_id=company_id)
     db.add(db_customer)
     db.commit()
     db.refresh(db_customer)
     return db_customer
 
-def get_customers(db: Session):
-    return db.query(Customer).all()
+def get_customers(db: Session, company_id: int):
+    return db.query(Customer).filter(Customer.company_id == company_id).all()
 
-def update_customer(db: Session, customer_id: int, customer_data: CustomerCreate):
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+def get_customer_by_id(db: Session, customer_id: int, company_id: int):
+    return db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == company_id
+    ).first()
+
+def update_customer(db: Session, customer_id: int, customer_data: CustomerCreate, company_id: int):
+    customer = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == company_id
+    ).first()
 
     if not customer:
         return None
@@ -26,8 +35,11 @@ def update_customer(db: Session, customer_id: int, customer_data: CustomerCreate
     db.refresh(customer)
     return customer
 
-def delete_customer(db: Session, customer_id: int):
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+def delete_customer(db: Session, customer_id: int, company_id: int):
+    customer = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == company_id
+    ).first()
 
     if not customer:
         return None

@@ -6,20 +6,26 @@ from app.models.supplier import Supplier
 from app.schemas.purchase import PurchaseCreate
 from sqlalchemy import desc
 
-def create_purchase(db: Session, purchase_data: PurchaseCreate):
+def create_purchase(db: Session, purchase_data: PurchaseCreate, company_id: int):
     """Crear una compra y actualizar stock de productos"""
     
-    # 🔍 1. Validar que el proveedor existe
-    supplier = db.query(Supplier).filter(Supplier.id == purchase_data.supplier_id).first()
+    # 🔍 1. Validar que el proveedor existe y pertenece a la compañía
+    supplier = db.query(Supplier).filter(
+        Supplier.id == purchase_data.supplier_id,
+        Supplier.company_id == company_id
+    ).first()
     if not supplier:
         raise Exception(f"Proveedor {purchase_data.supplier_id} no existe")
     
-    # 🔍 2. Validar que todos los productos existan y calcular total
+    # 🔍 2. Validar que todos los productos existan y pertenezcan a la compañía
     total_amount = 0.0
     purchase_items_data = []
     
     for item in purchase_data.items:
-        product = db.query(Product).filter(Product.id == item.product_id).first()
+        product = db.query(Product).filter(
+            Product.id == item.product_id,
+            Product.company_id == company_id
+        ).first()
         
         if not product:
             raise Exception(f"Producto {item.product_id} no existe")
@@ -44,6 +50,7 @@ def create_purchase(db: Session, purchase_data: PurchaseCreate):
     
     # 💾 3. Crear compra
     purchase = Purchase(
+        company_id=company_id,
         supplier_id=purchase_data.supplier_id,
         total_amount=total_amount
     )
@@ -79,9 +86,12 @@ def create_purchase(db: Session, purchase_data: PurchaseCreate):
     return purchase
 
 
-def get_purchase_details(db: Session, purchase_id: int):
+def get_purchase_details(db: Session, purchase_id: int, company_id: int):
     """Obtener los detalles completos de una compra"""
-    purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
+    purchase = db.query(Purchase).filter(
+        Purchase.id == purchase_id,
+        Purchase.company_id == company_id
+    ).first()
     
     if not purchase:
         raise Exception(f"Compra {purchase_id} no existe")
@@ -119,9 +129,11 @@ def get_purchase_details(db: Session, purchase_id: int):
     }
 
 
-def get_all_purchases(db: Session):
+def get_all_purchases(db: Session, company_id: int):
     """Obtener todas las compras ordenadas por fecha descendente"""
-    purchases = db.query(Purchase).order_by(desc(Purchase.date)).all()
+    purchases = db.query(Purchase).filter(
+        Purchase.company_id == company_id
+    ).order_by(desc(Purchase.date)).all()
     
     result = []
     for purchase in purchases:
@@ -138,15 +150,19 @@ def get_all_purchases(db: Session):
     return result
 
 
-def get_purchases_by_supplier(db: Session, supplier_id: int):
+def get_purchases_by_supplier(db: Session, supplier_id: int, company_id: int):
     """Obtener todas las compras de un proveedor específico"""
-    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    supplier = db.query(Supplier).filter(
+        Supplier.id == supplier_id,
+        Supplier.company_id == company_id
+    ).first()
     
     if not supplier:
         raise Exception(f"Proveedor {supplier_id} no existe")
     
     purchases = db.query(Purchase).filter(
-        Purchase.supplier_id == supplier_id
+        Purchase.supplier_id == supplier_id,
+        Purchase.company_id == company_id
     ).order_by(desc(Purchase.date)).all()
     
     result = []

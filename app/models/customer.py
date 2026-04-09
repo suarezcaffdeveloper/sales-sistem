@@ -10,6 +10,9 @@ class Customer(Base):
     email = Column(String, index=True)
     phone = Column(String, nullable=True)
     address = Column(String, nullable=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
 
+    # Relationships
+    company = relationship("Company", back_populates="customers")
     sales = relationship("Sale", back_populates="customer")
 
