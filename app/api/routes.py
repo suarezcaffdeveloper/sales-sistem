@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal, get_db
 from app.schemas.product import ProductCreate, ProductResponse
@@ -65,7 +65,7 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
 
 @public_router.post("/login", response_model=Token)
 @limiter.limit("5/minute")
-def login(user: UserLogin, db: Session = Depends(get_db)):
+def login(request: Request, user: UserLogin, db: Session = Depends(get_db)):
     db_user = get_user_by_username(db, user.username)
 
     if not db_user or not verify_password(user.password, db_user.password):
