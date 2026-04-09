@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CastZone — Dashboard</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/checkAuth.js"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-container">
+        <a href="/" class="nav-logo">
+            <div class="nav-logo-mark">
+                <svg viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 2h4v4H2zM8 2h4v4H8zM2 8h4v4H8z"/>
+                </svg>
+            </div>
+            <h1>CastZone</h1>
+        </a>
+        <ul class="nav-menu">
+            <li><a href="/dashboard.html" class="nav-link active" data-page="dashboard"><span>Dashboard</span></a></li>
+            <li><a href="/" class="nav-link" data-page="sales"><span>Ventas</span></a></li>
+            <li><a href="/compras.html" class="nav-link" data-page="purchases"><span>Compras</span></a></li>
+            <li><a href="/productos.html" class="nav-link" data-page="products"><span>Productos</span></a></li>
+            <li><a href="/clientes.html" class="nav-link" data-page="customers"><span>Clientes</span></a></li>
+            <li><a href="/proveedores.html" class="nav-link" data-page="suppliers"><span>Proveedores</span></a></li>
+            <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 1rem;">
+                <span id="username-display" style="color: var(--text-2); font-size: 0.875rem;"></span>
+                <button onclick="logout()" class="btn btn-secondary" style="padding: 0.45rem 0.875rem; font-size: 0.875rem;">Salir</button>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<div class="container">
+
+    <div class="page-header">
+        <div>
+            <h2>Dashboard</h2>
+            <p>Resumen general del negocio</p>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card primary">
+            <h3>Ventas totales</h3>
+            <div class="value" id="total-sales">$0.00</div>
+            <div class="subtitle">Acumulado general</div>
+        </div>
+        <div class="stat-card success">
+            <h3>Cantidad de ventas</h3>
+            <div class="value" id="sales-count">0</div>
+            <div class="subtitle">Transacciones realizadas</div>
+        </div>
+        <div class="stat-card success">
+            <h3>Ganancia total</h3>
+            <div class="value" id="total-profit">$0.00</div>
+            <div class="subtitle">Ingresos - Costo</div>
+        </div>
+        <div class="stat-card info">
+            <h3>Costo invertido</h3>
+            <div class="value" id="total-cost-invested">$0.00</div>
+            <div class="subtitle">En productos vendidos</div>
+        </div>
+        <div class="stat-card info">
+            <h3>Productos</h3>
+            <div class="value" id="total-products">0</div>
+            <div class="subtitle">En inventario</div>
+        </div>
+        <div class="stat-card info">
+            <h3>Clientes</h3>
+            <div class="value" id="total-customers">0</div>
+            <div class="subtitle">Registrados</div>
+        </div>
+        <div class="stat-card warning">
+            <h3>Stock bajo</h3>
+            <div class="value" id="low-stock-count">0</div>
+            <div class="subtitle">Menos de 3 unidades</div>
+        </div>
+        <!-- Card de Método de Pago - Se llenará dinámicamente -->
+        <div id="payment-methods-container"></div>
+    </div>
+
+    <!-- Control de Caja Diaria -->
+    <div class="form-section mt-section">
+        <h3>Control de Caja Diaria</h3>
+
+        <!-- Métricas del día -->
+        <div class="daily-box-grid" style="margin-bottom: 1.75rem;">
+            <div class="daily-metric-card accent">
+                <div class="daily-metric-label">Estado de Caja</div>
+                <div class="daily-metric-value" id="dashboard-box-status" style="font-size: 1.125rem; font-family: var(--font);">Cerrada</div>
+            </div>
+            <div class="daily-metric-card success">
+                <div class="daily-metric-label">Ventas Hoy</div>
+                <div class="daily-metric-value" id="dashboard-today-sales">$0.00</div>
+            </div>
+            <div class="daily-metric-card warning">
+                <div class="daily-metric-label">Ganancias Hoy</div>
+                <div class="daily-metric-value" id="dashboard-today-profit">$0.00</div>
+            </div>
+            <div class="daily-metric-card info">
+                <div class="daily-metric-label">Transacciones</div>
+                <div class="daily-metric-value" id="dashboard-today-count">0</div>
+            </div>
+        </div>
+
+        <h4 style="font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-bottom: 1rem;">Historial de Cajas</h4>
+        <div class="table-wrapper" style="max-height: 280px; overflow-y: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th>Ventas</th>
+                        <th>Ganancias</th>
+                        <th>Monto Inicial</th>
+                        <th>Monto Final</th>
+                    </tr>
+                </thead>
+                <tbody id="daily-boxes-table">
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 1rem; color: var(--text-3);">Cargando...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div> <br>
+
+    <!-- Alertas stock -->
+    <div id="low-stock-alerts"></div>
+
+    <!-- Más vendidos -->
+    <div class="form-section mt-section">
+        <h3>Productos más vendidos</h3>
+        <div class="table-wrapper" style="margin-top:1rem;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Producto</th>
+                        <th>Precio</th>
+                        <th>Vendidos</th>
+                        <th>Ingresos</th>
+                        <th>Ganancia</th>
+                    </tr>
+                </thead>
+                <tbody id="top-products-tbody">
+                    <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3);">Cargando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Menos vendidos -->
+    <div class="form-section mt-section">
+        <h3>Productos menos vendidos</h3>
+        <div class="table-wrapper" style="margin-top:1rem;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Producto</th>
+                        <th>Precio</th>
+                        <th>Vendidos</th>
+                        <th>Ingresos</th>
+                        <th>Ganancia</th>
+                    </tr>
+                </thead>
+                <tbody id="bottom-products-tbody">
+                    <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3);">Cargando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Deudas Pendientes -->
+    <div id="pending-debts-container" class="form-section mt-section">
+        <!-- Se llenará dinámicamente -->
+    </div>
+
+</div>
+
+<div id="error-modal" class="modal hidden">
+    <div class="modal-content error">
+        <div class="modal-icon error">✕</div>
+        <h3>Ocurrió un error</h3>
+        <p id="error-message"></p>
+        <button class="btn btn-secondary" onclick="document.getElementById('error-modal').classList.add('hidden')">Cerrar</button>
+    </div>
+</div>
+
+<!-- MODAL DE PAGO DE DEUDA -->
+<div id="payment-debt-modal" class="modal hidden">
+    <div class="modal-content" style="max-width: 500px;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <h3 style="margin-bottom: 0.5rem;">💳 Registrar Pago de Deuda</h3>
+            <p style="color: #666; font-size: 0.875rem;">Factura #<span id="payment-sale-id"></span></p>
+        </div>
+
+        <div style="background: #f5f5f5; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <label style="color: #666; font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Cliente</label>
+                    <p style="margin: 0; font-weight: 600;" id="payment-customer-name"></p>
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid #ddd; padding-top: 1rem; margin-top: 1rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label style="color: #666; font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Total Factura</label>
+                        <p style="margin: 0; font-weight: 600; color: #1976d2;" id="payment-total-amount">$0.00</p>
+                    </div>
+                    <div>
+                        <label style="color: #666; font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Ya Pagado</label>
+                        <p style="margin: 0; font-weight: 600; color: #4caf50;" id="payment-paid-amount">$0.00</p>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1rem; padding: 1rem; background: #fee2e2; border-radius: 4px;">
+                    <label style="color: #991b1b; font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Deuda Pendiente</label>
+                    <p style="margin: 0; font-weight: 700; color: #dc3545; font-size: 1.25rem;" id="payment-debt-amount">$0.00</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <label for="payment-new-amount" style="color: #333; font-weight: 600; display: block; margin-bottom: 0.5rem;">Ingresa el monto a pagar</label>
+            <input type="number" id="payment-new-amount" min="0" step="0.01" placeholder="0.00" 
+                   style="width: 100%; padding: 0.75rem; border: 2px solid #1976d2; border-radius: 4px; font-size: 1rem; font-weight: 600;">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <button class="btn btn-secondary" onclick="closePaymentModal()" style="margin: 0;">
+                Cancelar
+            </button>
+            <button id="confirm-debt-payment-btn" class="btn btn-success" onclick="processDebtPayment()" style="margin: 0;">
+                Confirmar Pago
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CastZone — Compras</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/checkAuth.js"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-container">
+        <a href="/" class="nav-logo">
+            <div class="nav-logo-mark">
+                <svg viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 2h4v4H2zM8 2h4v4H8zM2 8h4v4H8z"/>
+                </svg>
+            </div>
+            <h1>CastZone</h1>
+        </a>
+        <ul class="nav-menu">
+            <li><a href="/dashboard.html" class="nav-link" data-page="dashboard"><span>Dashboard</span></a></li>
+            <li><a href="/" class="nav-link" data-page="sales"><span>Ventas</span></a></li>
+            <li><a href="/compras.html" class="nav-link active" data-page="purchases"><span>Compras</span></a></li>
+            <li><a href="/productos.html" class="nav-link" data-page="products"><span>Productos</span></a></li>
+            <li><a href="/clientes.html" class="nav-link" data-page="customers"><span>Clientes</span></a></li>
+            <li><a href="/proveedores.html" class="nav-link" data-page="suppliers"><span>Proveedores</span></a></li>
+            <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 1rem;">
+                <span id="username-display" style="color: var(--text-2); font-size: 0.875rem;"></span>
+                <button onclick="logout()" class="btn btn-secondary" style="padding: 0.45rem 0.875rem; font-size: 0.875rem;">Salir</button>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<div class="container">
+
+    <div class="page-header">
+        <div>
+            <h2>Compras a Proveedores</h2>
+            <p>Registra compras y gestiona el stock</p>
+        </div>
+    </div>
+
+    <div class="content-wrapper">
+
+        <!-- Panel izquierdo: Formulario de compra -->
+        <div class="form-section">
+            <h3>Nueva Compra</h3>
+
+            <div class="form-group">
+                <label for="supplier-search">Proveedor</label>
+                <input type="text" id="supplier-search" placeholder="Buscar por nombre…">
+                <div id="supplier-search-results" class="search-results"></div>
+                <div id="selected-supplier">
+                    <strong>Seleccionado:</strong>
+                    <span id="selected-supplier-name"></span>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="form-group">
+                <label for="product-search-purchase">Producto</label>
+                <input type="text" id="product-search-purchase" placeholder="Buscar por nombre…">
+                <div id="search-results-purchase" class="search-results"></div>
+                <button type="button" id="create-new-product-btn" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem; display: none;">
+                    + Crear nuevo producto
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label for="product-quantity-purchase">Cantidad</label>
+                <input type="number" id="product-quantity-purchase" min="1" value="1">
+            </div>
+
+            <div class="form-group">
+                <label for="unit-cost">Costo Unitario</label>
+                <input type="number" id="unit-cost" placeholder="0.00" min="0" step="0.01" required>
+            </div>
+
+            <button id="add-product-purchase-btn" class="btn btn-primary" style="width:100%;">
+                Agregar producto
+            </button>
+        </div>
+
+        <!-- Panel derecho: Resumen de compra -->
+        <div class="summary-section">
+            <h3>Resumen de compra</h3>
+
+            <div id="cart-items-purchase" class="cart-items">
+                <p class="empty-message">Aún no hay productos agregados</p>
+            </div>
+
+            <div class="cart-totals">
+                <div class="total-row">
+                    <span>Subtotal</span>
+                    <span id="subtotal-purchase">$0.00</span>
+                </div>
+                <div class="total-row">
+                    <span>Cantidad de ítems</span>
+                    <span id="item-count-purchase">0</span>
+                </div>
+                <div class="total-row total">
+                    <span>Total</span>
+                    <span id="total-price-purchase">$0.00</span>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button id="complete-purchase-btn" class="btn btn-success" disabled>
+                    Confirmar compra
+                </button>
+                <button id="clear-cart-purchase-btn" class="btn btn-secondary">
+                    Limpiar lista
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Historial de Compras -->
+    <div style="margin-top: 3rem;">
+        <div class="page-header">
+            <div>
+                <h2>Historial de Compras</h2>
+                <p>Visualiza las compras realizadas</p>
+            </div>
+        </div>
+
+        <div class="form-section" style="margin-bottom: 1.5rem;">
+            <h3>Filtros</h3>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                    <label for="purchases-filter-supplier">Buscar por proveedor</label>
+                    <input type="text" id="purchases-filter-supplier" placeholder="Nombre del proveedor...">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button onclick="clearPurchasesFilters()" class="btn btn-secondary">
+                        Limpiar filtros
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Compras registradas</h3>
+            <div class="table-wrapper" style="margin-top: 1rem;">
+                <div id="purchases-history-table" style="max-height: 320px; overflow-y: auto; overflow-x: auto;">
+                    <p class="empty-message">Cargando compras...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal éxito -->
+<div id="success-modal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-icon success">✓</div>
+        <h3>Compra registrada</h3>
+        <p id="success-message">La compra fue completada correctamente.</p>
+        <button id="close-modal-btn" class="btn btn-primary">Aceptar</button>
+    </div>
+</div>
+
+<!-- Modal error -->
+<div id="error-modal" class="modal hidden">
+    <div class="modal-content error">
+        <div class="modal-icon error">✕</div>
+        <h3>Ocurrió un error</h3>
+        <p id="error-message"></p>
+        <button id="close-error-btn" class="btn btn-secondary">Cerrar</button>
+    </div>
+</div>
+
+<!-- Modal Detalle de Compra -->
+<div id="purchase-detail-modal" class="modal hidden">
+    <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">Detalle de Compra</h3>
+            <button onclick="closePurchaseDetailModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-3); line-height: 1;">&times;</button>
+        </div>
+
+        <div id="purchase-detail-content" style="background: var(--navy-3); border: 1px solid var(--border); padding: 1.5rem; border-radius: var(--radius); color: var(--text-2);">
+        </div>
+    </div>
+</div>
+
+<!-- Modal Crear Nuevo Producto -->
+<div id="create-product-modal" class="modal hidden">
+    <div class="modal-content" style="max-width: 460px; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 style="margin: 0;">Crear Nuevo Producto</h3>
+            <button onclick="closeCreateProductModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-3); line-height: 1;">&times;</button>
+        </div>
+
+        <div style="background: var(--navy-3); border: 1px solid var(--border); padding: 1.5rem; border-radius: var(--radius);">
+            <div class="form-group">
+                <label for="modal-product-name">Nombre del producto</label>
+                <input type="text" id="modal-product-name" placeholder="Ej: Camiseta manga corta">
+            </div>
+
+            <div class="form-group">
+                <label for="modal-product-price">Precio de venta</label>
+                <input type="number" id="modal-product-price" placeholder="0.00" min="0" step="0.01" required>
+            </div>
+
+            <div class="form-group">
+                <label for="modal-product-cost">Precio de costo</label>
+                <input type="number" id="modal-product-cost" placeholder="0.00" min="0" step="0.01" required>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="modal-product-stock">Stock inicial</label>
+                <input type="number" id="modal-product-stock" placeholder="0" min="0" value="0">
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+            <button onclick="saveNewProduct()" class="btn btn-success" style="flex: 1;">
+                Crear producto
+            </button>
+            <button onclick="closeCreateProductModal()" class="btn btn-secondary" style="flex: 1;">
+                Cancelar
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="loader" class="loader hidden"></div>
+
+<script src="/js/purchases.js"></script>
+</body>
+</html>

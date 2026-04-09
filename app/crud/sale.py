@@ -1,0 +1,162 @@
+from sqlalchemy.orm import Session
+from app.models.sale import Sale
+from app.models.sale_item import SaleItem
+from app.models.product import Product
+from app.schemas.sale import SaleCreate
+from sqlalchemy import desc
+from app.crud.daily_box import get_current_daily_box
+
+def create_sale(db: Session, sale_data: SaleCreate):
+    total_amount = 0
+    sale_items = []
+    
+    print(f"📝 Iniciando creación de venta para cliente {sale_data.customer_id}")
+    print(f"   Items: {len(sale_data.items)}, Pago inicial: {sale_data.initial_payment}")
+
+    # 🔍 1. Validar stock + calcular total
+    for item in sale_data.items:
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+
+        if not product:
+            raise Exception(f"Producto {item.product_id} no existe")
+
+        if product.stock < item.quantity:
+            raise Exception(f"Stock insuficiente para {product.name} (disponible: {product.stock}, solicitado: {item.quantity})")
+
+        total_amount += product.price * item.quantity
+
+        sale_items.append({
+            "product": product,
+            "quantity": item.quantity
+        })
+
+    # Validar pago inicial - pero SOLO para validación, no para guardar aquí
+    initial_payment = sale_data.initial_payment or 0
+    if initial_payment > total_amount:
+        raise Exception(f"El pago inicial no puede exceder el total de la venta")
+
+    # Obtener caja diaria activa
+    current_box = get_current_daily_box(db)
+    daily_box_id = current_box.id if current_box else None
+
+    # 💾 2. Crear venta - SIEMPRE con pagado=0, será actualizado por el pago después
+    sale = Sale(
+        customer_id=sale_data.customer_id,
+        daily_box_id=daily_box_id,
+        total_amount=float(total_amount),
+        paid_amount=0.0,  # Siempre 0 aquí, será actualizado por pagos
+        debt_amount=float(total_amount),  # Inicialmente es el total
+        status="pendiente"  # Siempre pendiente al crear
+    )
+
+    db.add(sale)
+    db.flush()  # Flush para obtener el ID sin hacer commit aún
+    db.refresh(sale)
+
+    # 📦 3. Crear items + descontar stock
+    for item in sale_items:
+        product = item["product"]
+
+        sale_item = SaleItem(
+            sale_id=sale.id,
+            product_id=product.id,
+            quantity=item["quantity"]
+        )
+
+        # 🔻 descontar stock
+        product.stock -= item["quantity"]
+
+        db.add(sale_item)
+
+    # Nota: No creamos el pago aquí, se registrará desde el frontend si es necesario
+    # Esto evita conflictos con múltiples registros de un mismo pago
+
+    db.commit()
+    db.refresh(sale)
+    
+    print(f"   ✅ Venta creada con ID: {sale.id}")
+
+    return sale
+
+
+def get_sale_details(db: Session, sale_id: int):
+    """Obtiene los detalles completos de una venta para el ticket/factura"""
+    print(f"\n📋 Obteniendo detalles de venta {sale_id}")
+    
+    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    
+    if not sale:
+        raise Exception(f"Venta {sale_id} no existe")
+    
+    print(f"   ✓ Venta encontrada: Total ${sale.total_amount}")
+    
+    # Obtener items de la venta con detalles del producto
+    items = db.query(
+        SaleItem.product_id,
+        Product.name.label("product_name"),
+        Product.price,
+        SaleItem.quantity
+    ).join(Product).filter(SaleItem.sale_id == sale_id).all()
+    
+    print(f"   ✓ Items encontrados: {len(items)}")
+    
+    items_detail = []
+    for item in items:
+        price = float(item.price) if item.price else 0.0
+        quantity = float(item.quantity) if item.quantity else 0.0
+        subtotal = price * quantity
+        
+        items_detail.append({
+            "product_id": item.product_id,
+            "product_name": str(item.product_name) if item.product_name else "Desconocido",
+            "quantity": quantity,
+            "price": price,
+            "subtotal": subtotal
+        })
+        print(f"     - {item.product_name}: {quantity}x${price} = ${subtotal}")
+    
+    # Validar que el cliente existe
+    customer_name = sale.customer.name if sale.customer else "Cliente desconocido"
+    customer_email = sale.customer.email if sale.customer and hasattr(sale.customer, 'email') else None
+    customer_phone = sale.customer.phone if sale.customer and hasattr(sale.customer, 'phone') else None
+    
+    result = {
+        "id": sale.id,
+        "customer_name": customer_name,
+        "customer_email": customer_email,
+        "customer_phone": customer_phone,
+        "created_at": sale.created_at,
+        "items": items_detail,
+        "total_amount": float(sale.total_amount),
+        "paid_amount": float(sale.paid_amount) if sale.paid_amount else 0.0,
+        "debt_amount": float(sale.debt_amount) if sale.debt_amount else 0.0,
+        "status": sale.status or "pendiente"
+    }
+    
+    print(f"   ✅ Detalles preparados: {len(items_detail)} items, Total ${result['total_amount']}")
+    
+    return result
+
+
+def get_all_sales(db: Session):
+    """Obtiene todas las ventas ordenadas por fecha (más recientes primero)"""
+    sales = db.query(Sale).order_by(desc(Sale.created_at)).all()
+    
+    sales_list = []
+    for sale in sales:
+        # Validar que el cliente existe
+        customer_name = sale.customer.name if sale.customer else "Cliente desconocido"
+        item_count = len(sale.items) if sale.items else 0
+        
+        sales_list.append({
+            "id": sale.id,
+            "customer_name": customer_name,
+            "created_at": sale.created_at,
+            "total_amount": sale.total_amount,
+            "paid_amount": sale.paid_amount,
+            "debt_amount": sale.debt_amount,
+            "status": sale.status,
+            "item_count": item_count
+        })
+    
+    return sales_list

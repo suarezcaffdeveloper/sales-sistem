@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CastZone — Productos</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/checkAuth.js"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-container">
+        <a href="/" class="nav-logo">
+            <div class="nav-logo-mark">
+                <svg viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 2h4v4H2zM8 2h4v4H8zM2 8h4v4H2zM8 8h4v4H8z"/>
+                </svg>
+            </div>
+            <h1>CastZone</h1>
+        </a>
+        <ul class="nav-menu">
+            <li><a href="/dashboard.html" class="nav-link" data-page="dashboard"><span>Dashboard</span></a></li>
+            <li><a href="/" class="nav-link" data-page="sales"><span>Ventas</span></a></li>
+            <li><a href="/compras.html" class="nav-link" data-page="purchases"><span>Compras</span></a></li>
+            <li><a href="/productos.html" class="nav-link active" data-page="products"><span>Productos</span></a></li>
+            <li><a href="/clientes.html" class="nav-link" data-page="customers"><span>Clientes</span></a></li>
+            <li><a href="/proveedores.html" class="nav-link" data-page="suppliers"><span>Proveedores</span></a></li>
+            <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 1rem;">
+                <span id="username-display" style="color: white; font-size: 0.9rem;"></span>
+                <button onclick="logout()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">Salir</button>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<div class="container">
+
+    <div class="page-header">
+        <div>
+            <h2>Productos</h2>
+            <p>Administrá el inventario de tu negocio</p>
+        </div>
+    </div>
+
+    <div class="content-wrapper" style="grid-template-columns:1fr;">
+        <div class="form-section">
+            <h3>Agregar / editar producto</h3>
+
+            <div class="form-group">
+                <label for="product-name">Nombre</label>
+                <input type="text" id="product-name" placeholder="Ej: Camiseta manga corta">
+            </div>
+
+            <div class="form-group">
+                <label for="product-price">Precio de venta</label>
+                <input type="number" id="product-price" step="0.01" placeholder="0.00">
+            </div>
+
+            <div class="form-group">
+                <label for="product-cost-price">Precio de costo</label>
+                <input type="number" id="product-cost-price" step="0.01" placeholder="0.00">
+            </div>
+
+            <div class="form-group">
+                <label for="product-stock">Stock</label>
+                <input type="number" id="product-stock" placeholder="0">
+            </div>
+
+            <div class="form-group">
+                <label for="product-supplier">Proveedor</label>
+                <select id="product-supplier">
+                    <option value="">Seleccionar proveedor</option>
+                </select>
+            </div>
+
+            <div class="action-buttons">
+                <button id="save-product-btn" class="btn btn-success">Guardar producto</button>
+                <button id="cancel-product-btn" class="btn btn-secondary" style="display:none;">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-section mt-section">
+        <h3>Listado de productos</h3>
+        
+        <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center;">
+            <input 
+                type="text" 
+                id="filter-products" 
+                placeholder="🔍 Buscar por nombre, código, marca..." 
+                style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.95rem; transition: all 0.3s;"
+                onfocus="this.style.borderColor='var(--primary)'; this.style.boxShadow='0 0 0 3px rgba(0, 132, 255, 0.1)';"
+                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';"
+            >
+            <button onclick="clearFilterProducts()" style="padding: 0.75rem 1.5rem; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s;" onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">Limpiar</button>
+        </div>
+        
+        <div class="table-wrapper" style="margin-top:1rem;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Precio Venta</th>
+                        <th>Precio Costo</th>
+                        <th>Margen</th>
+                        <th>Stock</th>
+                        <th>Proveedor</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="products-tbody">
+                    <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-3);">Cargando productos…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<div id="error-modal" class="modal hidden">
+    <div class="modal-content error">
+        <div class="modal-icon error">✕</div>
+        <h3>Ocurrió un error</h3>
+        <p id="error-message"></p>
+        <button class="btn btn-secondary" onclick="document.getElementById('error-modal').classList.add('hidden')">Cerrar</button>
+    </div>
+</div>
+
+<script src="/js/productos.js"></script>
+</body>
+</html>

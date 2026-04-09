@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CastZone — Ventas</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/checkAuth.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-container">
+        <a href="/" class="nav-logo">
+            <div class="nav-logo-mark">
+                <svg viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 2h4v4H2zM8 2h4v4H8zM2 8h4v4H8z"/>
+                </svg>
+            </div>
+            <h1>CastZone</h1>
+        </a>
+        <ul class="nav-menu">
+            <li><a href="/dashboard.html" class="nav-link" data-page="dashboard"><span>Dashboard</span></a></li>
+            <li><a href="/" class="nav-link active" data-page="sales"><span>Ventas</span></a></li>
+            <li><a href="/compras.html" class="nav-link" data-page="purchases"><span>Compras</span></a></li>
+            <li><a href="/productos.html" class="nav-link" data-page="products"><span>Productos</span></a></li>
+            <li><a href="/clientes.html" class="nav-link" data-page="customers"><span>Clientes</span></a></li>
+            <li><a href="/proveedores.html" class="nav-link" data-page="suppliers"><span>Proveedores</span></a></li>
+            <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 1rem;">
+                <span id="username-display" style="color: var(--text-2); font-size: 0.875rem;"></span>
+                <button onclick="logout()" class="btn btn-secondary" style="padding: 0.45rem 0.875rem; font-size: 0.875rem;">Salir</button>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<div class="container">
+
+    <!-- Header con panel de caja integrado -->
+    <div class="page-header" style="align-items: flex-start;">
+        <div>
+            <h2>Nueva Venta</h2>
+            <p>Seleccioná productos y registrá la transacción</p>
+        </div>
+
+        <!-- Panel de caja rediseñado -->
+        <div class="box-status-panel">
+            <div class="box-status-label">Estado de Caja</div>
+            <div id="box-status-indicator" class="box-status-value">Caja Cerrada</div>
+            <div class="box-status-actions" id="box-actions">
+                <button id="box-toggle-btn" class="btn btn-success" style="font-size: 0.8125rem; padding: 0.45rem 0.875rem;">
+                    Activar Caja Diaria
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="content-wrapper">
+
+        <!-- Panel izquierdo -->
+        <div class="form-section">
+            <h3>Configurar venta</h3>
+
+            <div class="form-group">
+                <label for="customer-search">Cliente</label>
+                <input type="text" id="customer-search" placeholder="Buscar por nombre…">
+                <div id="customer-search-results" class="search-results"></div>
+                <div id="selected-customer">
+                    <strong>Seleccionado:</strong>
+                    <span id="selected-customer-name"></span>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="form-group">
+                <label for="product-search">Producto</label>
+                <input type="text" id="product-search" placeholder="Buscar por nombre…">
+                <div id="search-results" class="search-results"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="product-quantity">Cantidad</label>
+                <input type="number" id="product-quantity" min="1" value="1">
+            </div>
+
+            <button id="add-product-btn" class="btn btn-primary" style="width:100%;">
+                Agregar producto
+            </button>
+        </div>
+
+        <!-- Panel derecho -->
+        <div class="summary-section">
+            <h3>Resumen de venta</h3>
+
+            <div id="cart-items" class="cart-items">
+                <p class="empty-message">Aún no hay productos agregados</p>
+            </div>
+
+            <div class="cart-totals">
+                <div class="total-row">
+                    <span>Subtotal</span>
+                    <span id="subtotal">$0.00</span>
+                </div>
+                <div class="total-row">
+                    <span>Cantidad de ítems</span>
+                    <span id="item-count">0</span>
+                </div>
+                <div class="total-row total">
+                    <span>Total</span>
+                    <span id="total-price">$0.00</span>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div style="background: #f5f5f5; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                <h4 style="margin-top: 0;">Pago</h4)>
+                
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label for="payment-method">Método de Pago</label>
+                    <select id="payment-method" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="efectivo">Efectivo</option>
+                        <option value="transferencia">Transferencia</option>
+                        <option value="tarjeta">Tarjeta</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="initial-payment">Pago Inicial (opcional)</label>
+                    <input type="number" id="initial-payment" placeholder="0.00" min="0" step="0.01" value="0">
+                    <small style="color: #999; display: block; margin-top: 0.25rem;">Si dejas vacío, quedará como deuda</small>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button id="complete-sale-btn" class="btn btn-success" disabled>
+                    Confirmar venta
+                </button>
+                <button id="clear-cart-btn" class="btn btn-secondary">
+                    Limpiar carrito
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Historial de Ventas -->
+    <div style="margin-top: 3rem;">
+        <div class="page-header">
+            <div>
+                <h2>Historial de Ventas</h2>
+                <p>Visualiza y filtra las ventas realizadas</p>
+            </div>
+        </div>
+
+        <div class="form-section" style="margin-bottom: 1.5rem;">
+            <h3>Filtros</h3>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                    <label for="sales-filter-customer">Buscar por cliente</label>
+                    <input type="text" id="sales-filter-customer" placeholder="Nombre del cliente...">
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                    <label for="sales-filter-date">Filtrar por fecha</label>
+                    <input type="date" id="sales-filter-date">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button onclick="clearSalesFilters()" class="btn btn-secondary">
+                        Limpiar filtros
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Ventas registradas</h3>
+            <div class="table-wrapper" style="margin-top: 1rem;">
+                <div id="sales-history-table" style="max-height: 320px; overflow-y: auto; overflow-x: auto;">
+                    <p class="empty-message">Cargando ventas...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal Abrir Caja -->
+<div id="open-box-modal" class="modal hidden">
+    <div class="modal-content" style="max-width: 380px; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 style="margin: 0;">Abrir Caja</h3>
+            <button onclick="closeOpenBoxModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-3); line-height: 1;">&times;</button>
+        </div>
+
+        <label for="opening-balance" style="display: block; font-size: 0.8125rem; font-weight: 500; color: var(--text-2); margin-bottom: 0.45rem;">Monto inicial (opcional)</label>
+        <input type="number" id="opening-balance" placeholder="0.00" min="0" step="0.01" value="0">
+
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+            <button onclick="closeOpenBoxModal()" class="btn btn-secondary">Cancelar</button>
+            <button onclick="openBox()" class="btn btn-success">Abrir Caja</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Cerrar Caja -->
+<div id="close-box-modal" class="modal hidden">
+    <div class="modal-content" style="max-width: 380px; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 style="margin: 0;">Cerrar Caja</h3>
+            <button onclick="closeCloseBoxModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-3); line-height: 1;">&times;</button>
+        </div>
+
+        <div style="background: var(--navy-3); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+            <div class="total-row" style="padding: 0.375rem 0;">
+                <span style="color: var(--text-3); font-size: 0.875rem;">Total de ventas del día</span>
+                <span id="close-total-sales" style="color: var(--success); font-family: var(--mono); font-weight: 500;">$0.00</span>
+            </div>
+            <div class="total-row" style="padding: 0.375rem 0;">
+                <span style="color: var(--text-3); font-size: 0.875rem;">Ganancias del día</span>
+                <span id="close-total-profit" style="color: var(--warning); font-family: var(--mono); font-weight: 500;">$0.00</span>
+            </div>
+        </div>
+
+        <label for="closing-balance" style="display: block; font-size: 0.8125rem; font-weight: 500; color: var(--text-2); margin-bottom: 0.45rem;">Monto final</label>
+        <input type="number" id="closing-balance" placeholder="0.00" min="0" step="0.01" value="0">
+
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+            <button onclick="closeCloseBoxModal()" class="btn btn-secondary">Cancelar</button>
+            <button onclick="closeBox()" class="btn btn-danger" style="padding: 0.625rem 1.125rem; font-size: 0.875rem;">Cerrar Caja</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal éxito -->
+<div id="success-modal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-icon success">✓</div>
+        <h3>Venta registrada</h3>
+        <p id="success-message">La transacción fue completada correctamente.</p>
+        <button id="close-modal-btn" class="btn btn-primary">Aceptar</button>
+    </div>
+</div>
+
+<!-- Modal error -->
+<div id="error-modal" class="modal hidden">
+    <div class="modal-content error">
+        <div class="modal-icon error">✕</div>
+        <h3>Ocurrió un error</h3>
+        <p id="error-message"></p>
+        <button id="close-error-btn" class="btn btn-secondary">Cerrar</button>
+    </div>
+</div>
+
+<!-- Modal Ticket/Factura -->
+<div id="ticket-modal" class="modal hidden">
+    <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">Ticket de Venta</h3>
+            <button onclick="closeTicketModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-3); line-height: 1;">&times;</button>
+        </div>
+
+        <div id="ticket-content" style="background: var(--navy-3); border: 1px solid var(--border); padding: 1.5rem; border-radius: var(--radius); font-family: var(--mono); font-size: 0.875rem; color: var(--text-2);">
+        </div>
+
+        <div style="margin-top: 1.25rem; display: flex; gap: 0.75rem; justify-content: flex-end;">
+            <button onclick="printTicket()" class="btn btn-secondary">
+                🖨️ Imprimir
+            </button>
+            <button onclick="downloadTicketPDF()" class="btn btn-success">
+                📥 Descargar PDF
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="loader" class="loader hidden"></div>
+
+<script src="/js/sales.js"></script>
+</body>
+</html>

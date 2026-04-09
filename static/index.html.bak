@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CastZone</title>
+</head>
+<body>
+    <script>
+        // Redirigir automáticamente basado en autenticación
+        const token = localStorage.getItem('auth_token');
+        
+        if (token) {
+            // Si hay token, ir al dashboard
+            window.location.href = '/dashboard.html';
+        } else {
+            // Si no hay token, ir al login
+            window.location.href = '/login.html';
+        }
+    </script>
+    <p style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">Cargando...</p>
+</body>
+</html>
