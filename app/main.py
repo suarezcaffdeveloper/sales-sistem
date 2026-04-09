@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.api.routes import protected_router, public_router
@@ -10,6 +11,20 @@ from app.models import Product, Customer, Supplier, Sale, SaleItem, User, DailyB
 
 app = FastAPI(title="CastZONE API")
 
+class CSPMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "font-src 'self'; "
+        )
+
+        return response
+
 # CORS - Permitir solicitudes desde cualquier origen
 app.add_middleware(
     CORSMiddleware,
@@ -18,6 +33,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(CSPMiddleware)
 
 Base.metadata.create_all(bind=engine)
 

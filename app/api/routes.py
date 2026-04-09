@@ -23,6 +23,10 @@ from fastapi import HTTPException
 from app.core.deps import get_current_user, get_current_user_with_company
 from app.crud.company import create_company
 from app.schemas.company import CompanyCreate, CompanyResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 
 # Router para rutas PROTEGIDAS (requieren autenticación)
 protected_router = APIRouter(
@@ -60,10 +64,10 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
     return create_user(db, user.username, user.password, company_id=company_id)
 
 @public_router.post("/login", response_model=Token)
+@limiter.limit("5/minute")
 def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = get_user_by_username(db, user.username)
 
-    # Mensaje genérico (seguridad)
     if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
