@@ -19,7 +19,7 @@ class CSPMiddleware(BaseHTTPMiddleware):
             "script-src 'self'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "
-            "font-src 'self'; "
+            "font-src 'self'"
         )
 
         return response
