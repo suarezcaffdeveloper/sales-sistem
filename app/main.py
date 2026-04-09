@@ -12,7 +12,7 @@ app = FastAPI(title="CastZONE API")
 # CORS - Permitir solicitudes desde cualquier origen
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción, especificar dominios permitidos
+    allow_origins=["https://sales-sistem.onrender.com"],  # En producción, especificar dominios permitidos
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
