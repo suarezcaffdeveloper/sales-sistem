@@ -16,7 +16,7 @@ class CSPMiddleware(BaseHTTPMiddleware):
 
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' https://cdnjs.cloudflare.com; "
+            "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "
             "font-src 'self'"
@@ -27,7 +27,7 @@ class CSPMiddleware(BaseHTTPMiddleware):
 # CORS - Permitir solicitudes desde cualquier origen
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://sales-sistem.onrender.com"],  # En producción, especificar dominios permitidos
+    allow_origins=["https://sales-sistem.onrender.com"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
