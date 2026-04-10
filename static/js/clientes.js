@@ -107,6 +107,37 @@ async function saveCustomer() {
         return;
     }
 
+    // Validar formato del nombre del cliente
+    const nameRegex = /^[a-zA-Z\s]+$/;
+    if (!nameRegex.test(name)) {
+        showError('El nombre del cliente solo puede contener letras y espacios');
+        return;
+    }
+
+    //Validar formato del teléfono (opcional)
+    if (phone) {
+        const phoneRegex = /^\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}$/;
+        if (!phoneRegex.test(phone)) {
+            showError('El teléfono no tiene un formato válido');
+            return;
+        }
+    }
+
+    const emailExists = customers.some(c => c.email === email && c.id !== editingId);
+    if (emailExists) {
+        showError('Ya existe un cliente con ese email');
+        return;
+    }
+
+    // Validar formato de dirección (opcional)
+    if (address) {
+        const addressRegex = /^[a-zA-Z0-9\s,.-]+$/;
+        if (!addressRegex.test(address)) {
+            showError('La dirección no tiene un formato válido');
+            return;
+        }
+    }
+
     const customerData = {
         name,
         email,
