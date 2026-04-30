@@ -1,26 +1,35 @@
 const API_BASE = '/api';
 
-// DOM Elements
-const totalSalesEl = document.getElementById('total-sales');
-const salesCountEl = document.getElementById('sales-count');
-const totalProfitEl = document.getElementById('total-profit');
-const totalCostInvestedEl = document.getElementById('total-cost-invested');
-const totalProductsEl = document.getElementById('total-products');
-const totalCustomersEl = document.getElementById('total-customers');
-const lowStockCountEl = document.getElementById('low-stock-count');
-const topProductsTbody = document.getElementById('top-products-tbody');
-const bottomProductsTbody = document.getElementById('bottom-products-tbody');
-const lowStockAlertsEl = document.getElementById('low-stock-alerts');
-const errorModal = document.getElementById('error-modal');
+// DOM Elements (lazy — se acceden dentro de funciones, nunca en el nivel raíz)
+const el = id => document.getElementById(id);
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', () => {
     displayUsername();
     loadDashboardStats();
     loadDailyBoxInfo();
-    loadPaymentMethodStats();  // Nueva línea
-    loadPendingDebts();        // Nueva línea
-    setupDailyBoxAutoRefresh(); // Auto-refresh de caja diaria
+    loadPaymentMethodStats();
+    loadPendingDebts();
+    setupDailyBoxAutoRefresh();
+    loadTopProfitableProducts();
+    loadStaleProducts();
+    loadInactiveCustomers();
+    loadBusinessInsights();
+
+    // Cerrar modal de gráfico al hacer click fuera
+    const chartModal = document.getElementById('sales-chart-modal');
+    if (chartModal) {
+        chartModal.addEventListener('click', function(e) {
+            if (e.target === this) closeSalesChart();
+        });
+    }
+
+    const debtModal = document.getElementById('debt-chart-modal');
+    if (debtModal) {
+        debtModal.addEventListener('click', function(e) {
+            if (e.target === this) closeDebtChart();
+        });
+    }
 });
 
 // MOSTRAR USERNAME EN NAVBAR
@@ -43,13 +52,13 @@ async function loadDashboardStats() {
         const data = await response.json();
         
         // Actualizar estadísticas principales
-        totalSalesEl.textContent = `$${parseFloat(data.total_sales).toFixed(2)}`;
-        salesCountEl.textContent = data.sales_count;
-        totalProfitEl.textContent = `$${parseFloat(data.total_profit).toFixed(2)}`;
-        totalCostInvestedEl.textContent = `$${parseFloat(data.total_cost_invested).toFixed(2)}`;
-        totalProductsEl.textContent = data.total_products;
-        totalCustomersEl.textContent = data.total_customers;
-        lowStockCountEl.textContent = data.low_stock_products.length;
+        el('total-sales').textContent = `$${parseFloat(data.total_sales).toFixed(2)}`;
+        el('sales-count').textContent = data.sales_count;
+        el('total-profit').textContent = `$${parseFloat(data.total_profit).toFixed(2)}`;
+        el('total-cost-invested').textContent = `$${parseFloat(data.total_cost_invested).toFixed(2)}`;
+        el('total-products').textContent = data.total_products;
+        el('total-customers').textContent = data.total_customers;
+        el('low-stock-count').textContent = data.low_stock_products.length;
         
         // Renderizar productos más vendidos
         renderTopProducts(data.top_products);
@@ -68,10 +77,11 @@ async function loadDashboardStats() {
 
 // RENDERIZAR PRODUCTOS MÁS VENDIDOS
 function renderTopProducts(products) {
-    topProductsTbody.innerHTML = '';
+    const tbody = el('top-products-tbody');
+    tbody.innerHTML = '';
     
     if (products.length === 0) {
-        topProductsTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #999;">No hay datos de ventas</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #999;">No hay datos de ventas</td></tr>';
         return;
     }
     
@@ -85,16 +95,17 @@ function renderTopProducts(products) {
             <td><strong style="color: #10b981;">$${product.revenue.toFixed(2)}</strong></td>
             <td><strong style="color: #0084ff;">$${product.profit.toFixed(2)}</strong></td>
         `;
-        topProductsTbody.appendChild(tr);
+        tbody.appendChild(tr);
     });
 }
 
 // RENDERIZAR PRODUCTOS MENOS VENDIDOS
 function renderBottomProducts(products) {
-    bottomProductsTbody.innerHTML = '';
+    const tbody = el('bottom-products-tbody');
+    tbody.innerHTML = '';
     
     if (products.length === 0) {
-        bottomProductsTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #999;">No hay datos</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #999;">No hay datos</td></tr>';
         return;
     }
     
@@ -108,12 +119,13 @@ function renderBottomProducts(products) {
             <td><strong style="color: #ef4444;">$${product.revenue.toFixed(2)}</strong></td>
             <td><strong style="color: #0084ff;">$${product.profit.toFixed(2)}</strong></td>
         `;
-        bottomProductsTbody.appendChild(tr);
+        tbody.appendChild(tr);
     });
 }
 
 // RENDERIZAR ALERTAS DE STOCK BAJO
 function renderLowStockAlerts(products) {
+    const lowStockAlertsEl = el('low-stock-alerts');
     lowStockAlertsEl.innerHTML = '';
     
     if (products.length === 0) {
@@ -172,8 +184,11 @@ function renderLowStockAlerts(products) {
 
 // MOSTRAR ERROR
 function showError(message) {
-    document.getElementById('error-message').textContent = message;
-    errorModal.classList.remove('hidden');
+    const errorModal = el('error-modal');
+    if (errorModal) {
+        el('error-message').textContent = message;
+        errorModal.classList.remove('hidden');
+    }
 }
 
 // ========== MÉTODOS DE PAGO ==========
@@ -249,6 +264,12 @@ function renderPendingDebtsPanel(data) {
     const pendingCount = data.pending_count || 0;
     const totalDebt = data.total_debt || 0;
     const debts = data.debts || [];
+
+    // Actualizar la stat card de deuda total
+    const totalDebtEl = document.getElementById('total-debt');
+    const debtCountEl = document.getElementById('debt-count');
+    if (totalDebtEl) totalDebtEl.textContent = `$${totalDebt.toFixed(2)}`;
+    if (debtCountEl) debtCountEl.textContent = pendingCount;
     
     let tableHTML = `
         <div class="form-section mt-section">
@@ -410,13 +431,14 @@ function renderDailyBoxesTable(boxes) {
     const tableBody = document.getElementById('daily-boxes-table');
     
     if (!Array.isArray(boxes) || boxes.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1rem; color: #999;">No hay cajas registradas</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 1rem; color: #999;">No hay cajas registradas</td></tr>';
         return;
     }
     
     tableBody.innerHTML = boxes.map(box => {
         const date = new Date(box.date);
         const formattedDate = date.toLocaleDateString('es-ES');
+        const isoDate = box.date;
         const statusBadge = box.status === 'open' 
             ? '<span style="background: #d1fae5; color: #065f46; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">Abierta</span>'
             : '<span style="background: #fee2e2; color: #991b1b; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">Cerrada</span>';
@@ -429,14 +451,20 @@ function renderDailyBoxesTable(boxes) {
                 <td style="color: #ff9800; font-weight: 600;">$${(box.total_profit || 0).toFixed(2)}</td>
                 <td>$${(box.opening_balance || 0).toFixed(2)}</td>
                 <td>${box.closing_balance ? `$${box.closing_balance.toFixed(2)}` : '-'}</td>
+                <td style="white-space:nowrap;">
+                    <button onclick="exportDailyBoxExcel('${isoDate}')" title="Exportar Excel"
+                        style="background:var(--success-dim);color:var(--success);border:none;border-radius:6px;padding:0.25rem 0.6rem;cursor:pointer;font-size:0.78rem;font-weight:600;margin-right:0.25rem;">
+                        📊 XLS
+                    </button>
+                    <button onclick="exportDailyBoxPDF('${isoDate}')" title="Exportar PDF"
+                        style="background:var(--danger-dim);color:var(--danger);border:none;border-radius:6px;padding:0.25rem 0.6rem;cursor:pointer;font-size:0.78rem;font-weight:600;">
+                        📄 PDF
+                    </button>
+                </td>
             </tr>
         `;
     }).join('');
 }
-
-// Actualizar inicialización
-loadDailyBoxInfo();
-setupDailyBoxRefresh();
 
 // ========== SISTEMA DE PAGOS DE DEUDAS ==========
 
@@ -550,4 +578,547 @@ function showErrorDashboard(message) {
 // MOSTRAR MODAL DE ÉXITO (Dashboard)
 function showSuccessDashboard(message) {
     alert(message);
+}
+
+// ========== GRÁFICO DE VENTAS ==========
+
+let salesChartInstance = null;
+
+function openSalesChart() {
+    const modal = document.getElementById('sales-chart-modal');
+    modal.style.display = 'flex';
+
+    // Valores por defecto: últimos 30 días
+    const today = new Date();
+    const start = new Date();
+    start.setDate(today.getDate() - 30);
+
+    const toISO = d => d.toISOString().split('T')[0];
+    document.getElementById('chart-start-date').value = toISO(start);
+    document.getElementById('chart-end-date').value = toISO(today);
+    document.getElementById('chart-group-by').value = 'day';
+
+    refreshSalesChart();
+}
+
+// Cerrar modal al hacer click fuera (registrado en DOMContentLoaded)
+function closeSalesChart() {
+    document.getElementById('sales-chart-modal').style.display = 'none';
+}
+
+async function refreshSalesChart() {
+    const startDate = document.getElementById('chart-start-date').value;
+    const endDate = document.getElementById('chart-end-date').value;
+    const groupBy = document.getElementById('chart-group-by').value;
+
+    if (!startDate || !endDate) return;
+
+    try {
+        const params = new URLSearchParams({ start_date: startDate, end_date: endDate + 'T23:59:59', group_by: groupBy });
+        const response = await fetchWithAuth(`${API_BASE}/statistics/sales-chart-v2?${params}`);
+        if (!response.ok) return;
+
+        const result = await response.json();
+        const chartData = result.data || [];
+        const summary = result.summary || {};
+
+        renderSalesChart(chartData, groupBy);
+        renderChartSummary(chartData, summary);
+    } catch (e) {
+        console.error('Error cargando gráfico:', e);
+    }
+}
+
+function renderSalesChart(data, groupBy) {
+    const canvas = document.getElementById('sales-chart-canvas');
+    const ctx = canvas.getContext('2d');
+
+    if (salesChartInstance) {
+        salesChartInstance.destroy();
+    }
+
+    if (!data || data.length === 0) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#64748b';
+        ctx.textAlign = 'center';
+        ctx.font = '14px DM Sans, sans-serif';
+        ctx.fillText('Sin datos para el período seleccionado', canvas.width / 2, canvas.height / 2);
+        return;
+    }
+
+    salesChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d.label),
+            datasets: [
+                {
+                    label: 'Ventas ($)',
+                    data: data.map(d => d.total_sales),
+                    backgroundColor: 'rgba(79, 124, 255, 0.55)',
+                    borderColor: '#4f7cff',
+                    borderWidth: 2,
+                    borderRadius: 5,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Ganancia ($)',
+                    data: data.map(d => d.profit || 0),
+                    backgroundColor: 'rgba(34, 197, 94, 0.45)',
+                    borderColor: '#22c55e',
+                    borderWidth: 2,
+                    borderRadius: 5,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Transacciones',
+                    data: data.map(d => d.count),
+                    type: 'line',
+                    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+                    borderColor: '#fbbf24',
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#fbbf24',
+                    tension: 0.3,
+                    yAxisID: 'y2'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#94a3b8', font: { family: 'DM Sans, sans-serif' } } },
+                tooltip: {
+                    backgroundColor: '#1e2333',
+                    titleColor: '#f1f5f9',
+                    bodyColor: '#94a3b8',
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: ctx => {
+                            if (ctx.dataset.label === 'Transacciones') return `Transacciones: ${ctx.parsed.y}`;
+                            return `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: {
+                    position: 'left',
+                    ticks: { color: '#64748b', callback: v => '$' + v.toFixed(0) },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                },
+                y2: {
+                    position: 'right',
+                    ticks: { color: '#fbbf24' },
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+}
+
+function renderChartSummary(data, summary = {}) {
+    const summaryEl = document.getElementById('chart-summary');
+    if (!data || data.length === 0) { summaryEl.innerHTML = ''; return; }
+
+    const totalSales = summary.total_sales ?? data.reduce((s, d) => s + d.total_sales, 0);
+    const totalProfit = summary.total_profit ?? data.reduce((s, d) => s + (d.profit || 0), 0);
+    const totalTx = summary.transaction_count ?? data.reduce((s, d) => s + d.count, 0);
+    const avg = totalTx > 0 ? totalSales / totalTx : 0;
+    const salesGrowth = summary.sales_growth;
+    const profitGrowth = summary.profit_growth;
+    const periodLabel = summary.period_label || 'período anterior';
+
+    function growthBadge(pct) {
+        if (pct === null || pct === undefined) return '';
+        const color = pct >= 0 ? '#22c55e' : '#ef4444';
+        const arrow = pct >= 0 ? '▲' : '▼';
+        return `<div style="font-size:0.72rem;color:${color};font-weight:600;margin-top:2px;">${arrow} ${Math.abs(pct)}% vs ${periodLabel}</div>`;
+    }
+
+    summaryEl.innerHTML = `
+        <div style="text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:0.25rem;">Ventas del período</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--accent);">$${totalSales.toFixed(2)}</div>
+            ${growthBadge(salesGrowth)}
+        </div>
+        <div style="text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:0.25rem;">Ganancia del período</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--success);">$${totalProfit.toFixed(2)}</div>
+            ${growthBadge(profitGrowth)}
+        </div>
+        <div style="text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:0.25rem;">Transacciones</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--text-1);">${totalTx}</div>
+        </div>
+        <div style="text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:0.25rem;">Ticket promedio</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--text-1);">$${avg.toFixed(2)}</div>
+        </div>
+    `;
+}
+
+// ========== PRODUCTOS MÁS RENTABLES ==========
+
+async function loadTopProfitableProducts() {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/statistics/top-profitable?limit=10`);
+        if (!response.ok) return;
+        const data = await response.json();
+        renderTopProfitableProducts(data);
+    } catch (e) {
+        console.error('Error cargando productos rentables:', e);
+    }
+}
+
+function renderTopProfitableProducts(products) {
+    const tbody = document.getElementById('top-profitable-tbody');
+    if (!tbody) return;
+
+    if (!products || products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">No hay datos de ventas</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = products.map((p, i) => `
+        <tr>
+            <td>${i + 1}</td>
+            <td><strong>${p.name}</strong></td>
+            <td>$${(p.price || 0).toFixed(2)}</td>
+            <td style="color:var(--text-2);">$${(p.cost_price || 0).toFixed(2)}</td>
+            <td><span style="background:var(--accent-dim);color:var(--accent);padding:0.2rem 0.6rem;border-radius:999px;font-weight:600;">${p.quantity_sold}</span></td>
+            <td>$${(p.revenue || 0).toFixed(2)}</td>
+            <td><strong style="color:var(--success);">$${(p.profit || 0).toFixed(2)}</strong></td>
+        </tr>
+    `).join('');
+}
+
+// ========== PRODUCTOS SIN VENTAS RECIENTES ==========
+
+async function loadStaleProducts() {
+    const days = document.getElementById('stale-days-select')?.value || 30;
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/statistics/stale-products?days=${days}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        renderStaleProducts(data);
+    } catch (e) {
+        console.error('Error cargando productos estancados:', e);
+    }
+}
+
+function renderStaleProducts(products) {
+    const tbody = document.getElementById('stale-products-tbody');
+    if (!tbody) return;
+
+    if (!products || products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--success);">✓ Todos los productos tienen ventas recientes</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = products.map(p => {
+        const lastSold = p.last_sold
+            ? new Date(p.last_sold).toLocaleDateString('es-ES')
+            : '—';
+        const daysSince = p.days_since_sold !== null && p.days_since_sold !== undefined
+            ? `${p.days_since_sold} días`
+            : 'Nunca vendido';
+        const badge = p.last_sold === null
+            ? `<span style="background:var(--danger-dim);color:var(--danger);padding:0.2rem 0.6rem;border-radius:999px;font-size:0.8rem;font-weight:600;">Nunca vendido</span>`
+            : `<span style="background:var(--warning-dim);color:var(--warning);padding:0.2rem 0.6rem;border-radius:999px;font-size:0.8rem;font-weight:600;">${daysSince}</span>`;
+        return `
+            <tr>
+                <td><strong>${p.name}</strong></td>
+                <td>${p.stock ?? 0}</td>
+                <td>$${(p.price || 0).toFixed(2)}</td>
+                <td style="color:var(--text-2);">${lastSold}</td>
+                <td>${badge}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ========== CLIENTES INACTIVOS ==========
+
+async function loadInactiveCustomers() {
+    const days = document.getElementById('inactive-days-select')?.value || 30;
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/statistics/inactive-customers?days=${days}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        renderInactiveCustomers(data);
+    } catch (e) {
+        console.error('Error cargando clientes inactivos:', e);
+    }
+}
+
+function renderInactiveCustomers(customers) {
+    const tbody = document.getElementById('inactive-customers-tbody');
+    if (!tbody) return;
+
+    if (!customers || customers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--success);">✓ Todos los clientes compraron recientemente</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = customers.map(c => {
+        const lastPurchase = c.last_purchase
+            ? new Date(c.last_purchase).toLocaleDateString('es-ES')
+            : '—';
+        const badge = c.last_purchase === null
+            ? `<span style="background:var(--danger-dim);color:var(--danger);padding:0.2rem 0.6rem;border-radius:999px;font-size:0.8rem;font-weight:600;">Sin compras</span>`
+            : `<span style="background:var(--warning-dim);color:var(--warning);padding:0.2rem 0.6rem;border-radius:999px;font-size:0.8rem;font-weight:600;">${c.days_inactive} días</span>`;
+        return `
+            <tr>
+                <td><strong>${c.name}</strong></td>
+                <td style="color:var(--text-2);">${c.phone || '—'}</td>
+                <td style="color:var(--text-2);">${c.email || '—'}</td>
+                <td style="color:var(--text-2);">${lastPurchase}</td>
+                <td>${badge}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ========== GRÁFICO DE DEUDAS ==========
+
+let debtChartInstance = null;
+
+function openDebtChart() {
+    const modal = document.getElementById('debt-chart-modal');
+    modal.style.display = 'flex';
+
+    const today = new Date();
+    const start = new Date();
+    start.setDate(today.getDate() - 30);
+    const toISO = d => d.toISOString().split('T')[0];
+
+    document.getElementById('debt-chart-start-date').value = toISO(start);
+    document.getElementById('debt-chart-end-date').value = toISO(today);
+    document.getElementById('debt-chart-group-by').value = 'day';
+
+    refreshDebtChart();
+}
+
+function closeDebtChart() {
+    document.getElementById('debt-chart-modal').style.display = 'none';
+}
+
+async function refreshDebtChart() {
+    const startDate = document.getElementById('debt-chart-start-date').value;
+    const endDate = document.getElementById('debt-chart-end-date').value;
+    const groupBy = document.getElementById('debt-chart-group-by').value;
+
+    if (!startDate || !endDate) return;
+
+    try {
+        const params = new URLSearchParams({ start_date: startDate, end_date: endDate + 'T23:59:59', group_by: groupBy });
+        const response = await fetchWithAuth(`${API_BASE}/statistics/debt-chart?${params}`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        renderDebtChart(data);
+        renderDebtChartSummary(data);
+    } catch (e) {
+        console.error('Error cargando gráfico de deudas:', e);
+    }
+}
+
+function renderDebtChart(data) {
+    const canvas = document.getElementById('debt-chart-canvas');
+    if (!canvas) return;
+
+    if (debtChartInstance) {
+        debtChartInstance.destroy();
+        debtChartInstance = null;
+    }
+
+    if (!data || data.length === 0) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+    }
+
+    const labels = data.map(d => d.label);
+    const debtValues = data.map(d => d.total_debt);
+    const salesValues = data.map(d => d.total_sales);
+
+    debtChartInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Deuda generada ($)',
+                    data: debtValues,
+                    backgroundColor: 'rgba(239,68,68,0.5)',
+                    borderColor: 'rgba(239,68,68,1)',
+                    borderWidth: 2,
+                    borderRadius: 4,
+                    order: 2
+                },
+                {
+                    label: 'Ventas totales ($)',
+                    data: salesValues,
+                    type: 'line',
+                    borderColor: 'rgba(99,179,237,0.9)',
+                    backgroundColor: 'rgba(99,179,237,0.1)',
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointBackgroundColor: 'rgba(99,179,237,1)',
+                    tension: 0.3,
+                    fill: false,
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#94a3b8', font: { size: 12 } } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                y: {
+                    ticks: { color: '#64748b', callback: v => `$${v.toFixed(0)}` },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                }
+            }
+        }
+    });
+}
+
+function renderDebtChartSummary(data) {
+    const summary = document.getElementById('debt-chart-summary');
+    if (!data || data.length === 0) { summary.innerHTML = ''; return; }
+
+    const totalDebt = data.reduce((s, d) => s + d.total_debt, 0);
+    const totalSales = data.reduce((s, d) => s + d.total_sales, 0);
+    const debtCount = data.reduce((s, d) => s + d.debt_count, 0);
+    const debtPct = totalSales > 0 ? (totalDebt / totalSales * 100) : 0;
+
+    summary.innerHTML = `
+        <div style="text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:0.25rem;">Deuda del período</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--danger);">$${totalDebt.toFixed(2)}</div>
+        </div>
+        <div style="text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:0.25rem;">Facturas adeudadas</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--warning);">${debtCount}</div>
+        </div>
+        <div style="text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:0.25rem;">% sobre ventas</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--text-1);">${debtPct.toFixed(1)}%</div>
+        </div>
+        <div style="text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text-3);margin-bottom:0.25rem;">Ventas del período</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--accent);">$${totalSales.toFixed(2)}</div>
+        </div>
+    `;
+}
+
+// ========== INSIGHTS DE NEGOCIO ==========
+
+async function loadBusinessInsights() {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/statistics/insights`);
+        if (!response.ok) return;
+        const data = await response.json();
+        renderBusinessInsights(data);
+    } catch (e) {
+        console.error('Error cargando insights:', e);
+    }
+}
+
+function renderBusinessInsights(insights) {
+    const container = document.getElementById('business-insights-container');
+    if (!container) return;
+
+    if (!insights || insights.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-3);text-align:center;padding:1.5rem;">Genera más ventas para ver insights de tu negocio</p>';
+        return;
+    }
+
+    const typeColors = {
+        success: { bg: 'var(--success-dim)', color: 'var(--success)' },
+        warning: { bg: 'var(--warning-dim)', color: 'var(--warning)' },
+        danger:  { bg: 'var(--danger-dim)',  color: 'var(--danger)'  },
+        info:    { bg: 'var(--accent-dim)',   color: 'var(--accent)'  },
+    };
+
+    container.innerHTML = insights.map(ins => {
+        const style = typeColors[ins.type] || typeColors.info;
+        return `
+            <div style="display:flex;gap:1rem;align-items:flex-start;padding:1rem 1.25rem;
+                        background:${style.bg};border-radius:12px;margin-bottom:0.75rem;">
+                <span style="font-size:1.5rem;flex-shrink:0;">${ins.icon}</span>
+                <div>
+                    <div style="font-weight:600;color:${style.color};font-size:0.9rem;">${ins.title}</div>
+                    <div style="color:var(--text-2);font-size:0.82rem;margin-top:0.2rem;">${ins.detail}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ========== EXPORTACIÓN CAJA DIARIA ==========
+
+async function exportDailyBoxExcel(date) {
+    const boxDate = date || new Date().toISOString().split('T')[0];
+    try {
+        const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+        const response = await fetch(`${API_BASE}/reports/daily-box/excel?date=${boxDate}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) {
+            alert('Error al generar el Excel. Intente de nuevo.');
+            return;
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `caja-${boxDate}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('Error exportando Excel:', e);
+        alert('Error al exportar el Excel.');
+    }
+}
+
+async function exportDailyBoxPDF(date) {
+    const boxDate = date || new Date().toISOString().split('T')[0];
+    try {
+        const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+        const response = await fetch(`${API_BASE}/reports/daily-box/pdf?date=${boxDate}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) {
+            alert('Error al generar el PDF. Intente de nuevo.');
+            return;
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `caja-${boxDate}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('Error exportando PDF:', e);
+        alert('Error al exportar el PDF.');
+    }
 }

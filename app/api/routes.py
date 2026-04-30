@@ -1,31 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.db.database import SessionLocal, get_db
-from app.schemas.product import ProductCreate, ProductResponse
-from app.crud.product import create_product, get_products, update_product, delete_product
-from typing import Optional, List
-from app.crud.product import get_products_filtered
-from app.schemas.sale import SaleCreate, SaleResponse, SaleDetail
-from app.crud.sale import create_sale, get_sale_details, get_all_sales
-from app.schemas.purchase import PurchaseCreate, PurchaseResponse, PurchaseDetail
-from app.crud.purchase import (
-    create_purchase, get_purchase_details, get_all_purchases, get_purchases_by_supplier
-)
+from app.db.database import get_db
+from app.schemas.product import ProductResponse, ProductCreate
+from app.crud.product import create_product, get_products, update_product, delete_product, get_products_filtered
+from app.schemas.sale import SaleCreate, SaleResponse
+from app.crud.sale import create_sale, get_sale_details, get_all_sales, get_pending_debts
+from app.schemas.purchase import PurchaseCreate, PurchaseResponse
+from app.crud.purchase import create_purchase, get_purchase_details, get_all_purchases, get_purchases_by_supplier
 from app.schemas.daily_box import DailyBoxCreate, DailyBoxClose, DailyBoxResponse
-from app.crud.daily_box import (
-    open_daily_box, close_daily_box, get_current_daily_box, 
-    get_daily_box_by_date, get_all_daily_boxes, get_daily_box_details_by_id
-)
-from app.schemas.user import UserCreate, UserLogin, Token, UserRegister, UserResponse
+from app.crud.daily_box import open_daily_box, close_daily_box, get_current_daily_box, get_daily_box_by_date, get_all_daily_boxes, get_daily_box_details_by_id
+from app.schemas.user import UserLogin, Token, UserRegister, UserResponse
 from app.crud.user import create_user, get_user_by_username
 from app.core.security import verify_password, create_access_token
-from fastapi import HTTPException
 from app.core.deps import get_current_user, get_current_user_with_company
+from typing import Optional
 from app.crud.company import create_company
 from app.schemas.company import CompanyCreate, CompanyResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-
+from fastapi import Request
 limiter = Limiter(key_func=get_remote_address)
 
 # Router para rutas PROTEGIDAS (requieren autenticación)
@@ -358,24 +351,23 @@ def list_boxes(user_info: dict = Depends(get_current_user_with_company), db: Ses
 # RUTAS PARA ESTADÍSTICAS
 from app.crud.statistics import (
     get_sales_by_period,
-    get_top_products,
-    get_bottom_products,
     get_low_stock_products,
     get_total_products,
     get_total_customers,
     get_total_sales,
-    get_total_sales_count,
-    get_total_profit,
-    get_total_cost_invested,
-    get_dashboard_stats,
-    get_most_used_payment_method,
-    get_pending_debts
+    get_total_sales_count
 )
+from app.analytics.dashboard_analytics import get_dashboard_stats_pandas, get_top_products, get_bottom_products, get_total_profit_pandas_fast, get_most_used_payment_method_pandas
 
 @protected_router.get("/statistics/dashboard")
 def get_dashboard(user_info: dict = Depends(get_current_user_with_company), db: Session = Depends(get_db)):
     """Obtiene todas las estadísticas del dashboard"""
-    return get_dashboard_stats(db, user_info["company_id"])
+    return get_dashboard_stats_pandas(db, user_info["company_id"])
+
+@protected_router.get("/statistics/total-profit")
+def get_total_profit(user_info: dict = Depends(get_current_user_with_company), db: Session = Depends(get_db)):
+    """Obtiene el total de ganancias"""
+    return get_total_profit_pandas_fast(db, user_info["company_id"])
 
 @protected_router.get("/statistics/sales/{period}")
 def get_sales_stats(period: str = "day", user_info: dict = Depends(get_current_user_with_company), db: Session = Depends(get_db)):
@@ -400,7 +392,164 @@ def get_low_stock(threshold: int = 3, user_info: dict = Depends(get_current_user
 @protected_router.get("/statistics/payment-methods")
 def get_payment_methods_stats(user_info: dict = Depends(get_current_user_with_company), db: Session = Depends(get_db)):
     """Obtiene el método de pago más utilizado"""
-    return get_most_used_payment_method(db, user_info["company_id"])
+    return get_most_used_payment_method_pandas(db, user_info["company_id"])
+
+@protected_router.get("/statistics/sales-chart")
+def get_sales_chart(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    group_by: str = "day",
+    user_info: dict = Depends(get_current_user_with_company),
+    db: Session = Depends(get_db)
+):
+    """Obtiene datos de ventas agrupados por período para graficar"""
+    from datetime import datetime, timedelta
+    from app.analytics.dashboard_analytics import get_sales_chart_data
+    try:
+        end = datetime.fromisoformat(end_date) if end_date else datetime.utcnow()
+        start = datetime.fromisoformat(start_date) if start_date else end - timedelta(days=30)
+        return get_sales_chart_data(db, user_info["company_id"], start, end, group_by)
+    except Exception as e:
+        print(f"Error sales-chart: {e}")
+        return []
+
+@protected_router.get("/statistics/debt-chart")
+def get_debt_chart(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    group_by: str = "day",
+    user_info: dict = Depends(get_current_user_with_company),
+    db: Session = Depends(get_db)
+):
+    """Obtiene datos de deudas agrupados por período para graficar"""
+    from datetime import datetime, timedelta
+    from app.analytics.dashboard_analytics import get_debt_chart_data
+    try:
+        end = datetime.fromisoformat(end_date) if end_date else datetime.utcnow()
+        start = datetime.fromisoformat(start_date) if start_date else end - timedelta(days=30)
+        return get_debt_chart_data(db, user_info["company_id"], start, end, group_by)
+    except Exception as e:
+        print(f"Error debt-chart: {e}")
+        return []
+
+@protected_router.get("/statistics/top-profitable")
+def get_top_profitable(
+    limit: int = 5,
+    user_info: dict = Depends(get_current_user_with_company),
+    db: Session = Depends(get_db)
+):
+    """Obtiene los productos más rentables"""
+    from app.analytics.dashboard_analytics import get_top_profitable_products
+    try:
+        return get_top_profitable_products(db, user_info["company_id"], limit)
+    except Exception as e:
+        return []
+
+@protected_router.get("/statistics/stale-products")
+def get_stale_products_endpoint(
+    days: int = 30,
+    user_info: dict = Depends(get_current_user_with_company),
+    db: Session = Depends(get_db)
+):
+    """Obtiene productos que no se han vendido en los últimos N días"""
+    from app.analytics.dashboard_analytics import get_stale_products
+    try:
+        return get_stale_products(db, user_info["company_id"], days)
+    except Exception as e:
+        return []
+
+@protected_router.get("/statistics/inactive-customers")
+def get_inactive_customers_endpoint(
+    days: int = 30,
+    user_info: dict = Depends(get_current_user_with_company),
+    db: Session = Depends(get_db)
+):
+    """Obtiene clientes que no han comprado en los últimos N días"""
+    from app.analytics.dashboard_analytics import get_inactive_customers
+    try:
+        return get_inactive_customers(db, user_info["company_id"], days)
+    except Exception as e:
+        return []
+
+@protected_router.get("/statistics/sales-chart-v2")
+def get_sales_chart_v2(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    group_by: str = "day",
+    user_info: dict = Depends(get_current_user_with_company),
+    db: Session = Depends(get_db)
+):
+    """Gráfico de ventas con crecimiento vs período anterior y ganancia por período"""
+    from datetime import datetime, timedelta
+    from app.analytics.dashboard_analytics import get_sales_chart_with_growth
+    try:
+        end = datetime.fromisoformat(end_date) if end_date else datetime.utcnow()
+        start = datetime.fromisoformat(start_date) if start_date else end - timedelta(days=30)
+        return get_sales_chart_with_growth(db, user_info["company_id"], start, end, group_by)
+    except Exception as e:
+        print(f"Error sales-chart-v2: {e}")
+        return {"data": [], "summary": {}}
+
+@protected_router.get("/statistics/insights")
+def get_insights(
+    user_info: dict = Depends(get_current_user_with_company),
+    db: Session = Depends(get_db)
+):
+    """Insights de negocio accionables"""
+    from app.analytics.dashboard_analytics import get_business_insights
+    try:
+        return get_business_insights(db, user_info["company_id"])
+    except Exception as e:
+        print(f"Error insights: {e}")
+        return []
+
+# ── EXPORTACIÓN ──────────────────────────────────────────────────────────────
+
+from fastapi.responses import StreamingResponse
+
+@protected_router.get("/reports/daily-box/excel")
+def export_daily_box_excel(
+    date: Optional[str] = None,
+    user_info: dict = Depends(get_current_user_with_company),
+    db: Session = Depends(get_db)
+):
+    """Exporta la caja diaria a Excel. date=YYYY-MM-DD (default: hoy)"""
+    from datetime import datetime
+    from app.services.report_generator import generate_daily_box_excel
+    try:
+        box_date = date or datetime.utcnow().strftime("%Y-%m-%d")
+        output = generate_daily_box_excel(db, box_date, user_info["company_id"])
+        filename = f"caja_{box_date}.xlsx"
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    except Exception as e:
+        print(f"Error export excel: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generando Excel: {str(e)}")
+
+@protected_router.get("/reports/daily-box/pdf")
+def export_daily_box_pdf(
+    date: Optional[str] = None,
+    user_info: dict = Depends(get_current_user_with_company),
+    db: Session = Depends(get_db)
+):
+    """Exporta la caja diaria a PDF. date=YYYY-MM-DD (default: hoy)"""
+    from datetime import datetime
+    from app.services.report_generator import generate_daily_box_pdf
+    try:
+        box_date = date or datetime.utcnow().strftime("%Y-%m-%d")
+        output = generate_daily_box_pdf(db, box_date, user_info["company_id"])
+        filename = f"caja_{box_date}.pdf"
+        return StreamingResponse(
+            output,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    except Exception as e:
+        print(f"Error export pdf: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generando PDF: {str(e)}")
 
 
 # ================================
@@ -555,3 +704,4 @@ def get_monthly_report(db: Session = Depends(get_db)):
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
+

@@ -6,6 +6,7 @@
     <title>CastZone — Dashboard</title>
     <link rel="stylesheet" href="/css/style.css">
     <script src="/js/checkAuth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -45,10 +46,10 @@
 
     <!-- Stats -->
     <div class="stats-grid">
-        <div class="stat-card primary">
+        <div class="stat-card primary" onclick="openSalesChart()" style="cursor:pointer;" title="Ver gráfico de ventas">
             <h3>Ventas totales</h3>
             <div class="value" id="total-sales">$0.00</div>
-            <div class="subtitle">Acumulado general</div>
+            <div class="subtitle">Acumulado general · <span style="font-size:0.75rem;opacity:0.7;">📊 Click para gráfico</span></div>
         </div>
         <div class="stat-card success">
             <h3>Cantidad de ventas</h3>
@@ -80,7 +81,12 @@
             <div class="value" id="low-stock-count">0</div>
             <div class="subtitle">Menos de 3 unidades</div>
         </div>
-        
+        <div class="stat-card danger" onclick="openDebtChart()" style="cursor:pointer;" title="Ver gráfico de deudas">
+            <h3>Total adeudado</h3>
+            <div class="value" id="total-debt">$0.00</div>
+            <div class="subtitle"><span id="debt-count">0</span> factura(s) · <span style="font-size:0.75rem;opacity:0.7;">📈 Click para gráfico</span></div>
+        </div>
+
         <div id="payment-methods-container"></div>
     </div>
 
@@ -119,11 +125,12 @@
                         <th>Ganancias</th>
                         <th>Monto Inicial</th>
                         <th>Monto Final</th>
+                        <th>Exportar</th>
                     </tr>
                 </thead>
                 <tbody id="daily-boxes-table">
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 1rem; color: var(--text-3);">Cargando...</td>
+                        <td colspan="7" style="text-align: center; padding: 1rem; color: var(--text-3);">Cargando...</td>
                     </tr>
                 </tbody>
             </table>
@@ -180,6 +187,86 @@
     <!-- Deudas Pendientes -->
     <div id="pending-debts-container" class="form-section mt-section">
         <!-- Se llenará dinámicamente -->
+    </div>
+
+    <!-- Productos más rentables -->
+    <div class="form-section mt-section">
+        <h3>🏆 Productos más rentables</h3>
+        <div class="table-wrapper" style="margin-top:1rem;">
+            <table>
+                <thead>
+                    <tr><th>#</th><th>Producto</th><th>Precio</th><th>Costo</th><th>Vendidos</th><th>Ingresos</th><th>Ganancia</th></tr>
+                </thead>
+                <tbody id="top-profitable-tbody">
+                    <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-3);">Cargando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Productos sin ventas recientes -->
+    <div class="form-section mt-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h3>📦 Productos sin ventas recientes</h3>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <label style="font-size:0.875rem;color:var(--text-2);">Sin vender hace más de</label>
+                <select id="stale-days-select" onchange="loadStaleProducts()" style="background:var(--navy-3);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:0.3rem 0.5rem;font-size:0.875rem;">
+                    <option value="7">7 días</option>
+                    <option value="15">15 días</option>
+                    <option value="30" selected>30 días</option>
+                    <option value="60">60 días</option>
+                    <option value="90">90 días</option>
+                </select>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr><th>Producto</th><th>Stock</th><th>Precio</th><th>Última venta</th><th>Días sin vender</th></tr>
+                </thead>
+                <tbody id="stale-products-tbody">
+                    <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-3);">Cargando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Clientes inactivos -->
+    <div class="form-section mt-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h3>👤 Clientes inactivos</h3>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <label style="font-size:0.875rem;color:var(--text-2);">Sin compras hace más de</label>
+                <select id="inactive-days-select" onchange="loadInactiveCustomers()" style="background:var(--navy-3);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:0.3rem 0.5rem;font-size:0.875rem;">
+                    <option value="7">7 días</option>
+                    <option value="15">15 días</option>
+                    <option value="30" selected>30 días</option>
+                    <option value="60">60 días</option>
+                    <option value="90">90 días</option>
+                </select>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr><th>Cliente</th><th>Teléfono</th><th>Email</th><th>Última compra</th><th>Días inactivo</th></tr>
+                </thead>
+                <tbody id="inactive-customers-tbody">
+                    <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-3);">Cargando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Insights de negocio -->
+    <div class="form-section mt-section">
+        <h3 style="display:flex;align-items:center;gap:0.5rem;">
+            <span>🔍</span> Insights del Negocio
+        </h3>
+        <p style="color:var(--text-3);font-size:0.82rem;margin:-0.5rem 0 1rem 0;">Análisis automático basado en tus datos de ventas</p>
+        <div id="business-insights-container">
+            <p style="color:var(--text-3);text-align:center;padding:1.5rem;">Cargando insights…</p>
+        </div>
     </div>
 
 </div>
@@ -244,6 +331,72 @@
     </div>
 </div>
 
-<script src="/js/dashboard.js"></script>
+<!-- MODAL GRÁFICO DE DEUDAS -->
+<div id="debt-chart-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+    <div style="background:var(--navy-2);border:1px solid var(--border-2);border-radius:var(--radius-lg);padding:2rem;width:min(90vw,800px);max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+            <h3 style="margin:0;">📈 Evolución de Deudas</h3>
+            <button onclick="closeDebtChart()" style="background:none;border:none;color:var(--text-2);font-size:1.5rem;cursor:pointer;line-height:1;">&times;</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;align-items:flex-end;">
+            <div>
+                <label style="display:block;font-size:0.8125rem;color:var(--text-2);margin-bottom:0.35rem;">Desde</label>
+                <input type="date" id="debt-chart-start-date" style="background:var(--navy-3);color:var(--text-1);border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:0.5rem 0.75rem;font-size:0.875rem;">
+            </div>
+            <div>
+                <label style="display:block;font-size:0.8125rem;color:var(--text-2);margin-bottom:0.35rem;">Hasta</label>
+                <input type="date" id="debt-chart-end-date" style="background:var(--navy-3);color:var(--text-1);border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:0.5rem 0.75rem;font-size:0.875rem;">
+            </div>
+            <div>
+                <label style="display:block;font-size:0.8125rem;color:var(--text-2);margin-bottom:0.35rem;">Agrupar por</label>
+                <select id="debt-chart-group-by" style="background:var(--navy-3);color:var(--text-1);border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:0.5rem 0.75rem;font-size:0.875rem;">
+                    <option value="day">Día</option>
+                    <option value="week">Semana</option>
+                    <option value="month">Mes</option>
+                </select>
+            </div>
+            <button onclick="refreshDebtChart()" class="btn btn-primary" style="padding:0.5rem 1.25rem;margin:0;">Actualizar</button>
+        </div>
+        <div style="position:relative;height:340px;">
+            <canvas id="debt-chart-canvas"></canvas>
+        </div>
+        <div id="debt-chart-summary" style="display:flex;gap:2rem;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border);"></div>
+    </div>
+</div>
+
+<!-- MODAL GRÁFICO DE VENTAS -->
+<div id="sales-chart-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+    <div style="background:var(--navy-2);border:1px solid var(--border-2);border-radius:var(--radius-lg);padding:2rem;width:min(90vw,800px);max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+            <h3 style="margin:0;">📊 Gráfico de Ventas</h3>
+            <button onclick="closeSalesChart()" style="background:none;border:none;color:var(--text-2);font-size:1.5rem;cursor:pointer;line-height:1;">&times;</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;align-items:flex-end;">
+            <div>
+                <label style="display:block;font-size:0.8125rem;color:var(--text-2);margin-bottom:0.35rem;">Desde</label>
+                <input type="date" id="chart-start-date" style="background:var(--navy-3);color:var(--text-1);border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:0.5rem 0.75rem;font-size:0.875rem;">
+            </div>
+            <div>
+                <label style="display:block;font-size:0.8125rem;color:var(--text-2);margin-bottom:0.35rem;">Hasta</label>
+                <input type="date" id="chart-end-date" style="background:var(--navy-3);color:var(--text-1);border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:0.5rem 0.75rem;font-size:0.875rem;">
+            </div>
+            <div>
+                <label style="display:block;font-size:0.8125rem;color:var(--text-2);margin-bottom:0.35rem;">Agrupar por</label>
+                <select id="chart-group-by" style="background:var(--navy-3);color:var(--text-1);border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:0.5rem 0.75rem;font-size:0.875rem;">
+                    <option value="day">Día</option>
+                    <option value="week">Semana</option>
+                    <option value="month">Mes</option>
+                </select>
+            </div>
+            <button onclick="refreshSalesChart()" class="btn btn-primary" style="padding:0.5rem 1.25rem;margin:0;">Actualizar</button>
+        </div>
+        <div style="position:relative;height:340px;">
+            <canvas id="sales-chart-canvas"></canvas>
+        </div>
+        <div id="chart-summary" style="display:flex;gap:2rem;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border);"></div>
+    </div>
+</div>
+
+<script src="/js/dashboard.js?v=4"></script>
 </body>
 </html>

@@ -155,11 +155,13 @@ def get_all_sales(db: Session, company_id: int):
     for sale in sales:
         # Validar que el cliente existe
         customer_name = sale.customer.name if sale.customer else "Cliente desconocido"
+        customer_phone = sale.customer.phone if sale.customer else "-"
         item_count = len(sale.items) if sale.items else 0
         
         sales_list.append({
             "id": sale.id,
             "customer_name": customer_name,
+            "customer_phone": customer_phone,
             "created_at": sale.created_at,
             "total_amount": sale.total_amount,
             "paid_amount": sale.paid_amount,
@@ -169,3 +171,36 @@ def get_all_sales(db: Session, company_id: int):
         })
     
     return sales_list
+
+
+def get_pending_debts(db: Session, company_id: int):
+    """Obtiene todas las ventas con deuda pendiente (deuda > 0) para la compañía."""
+    sales = db.query(Sale).filter(
+        Sale.company_id == company_id,
+        Sale.debt_amount > 0,
+        Sale.total_amount > 0
+    ).order_by(desc(Sale.created_at)).all()
+
+    debts = []
+    total_debt = 0.0
+    for sale in sales:
+        customer_name = sale.customer.name if sale.customer else "Desconocido"
+        customer_phone = sale.customer.phone if sale.customer else "-"
+        item_count = len(sale.items) if sale.items else 0
+        debt = float(sale.debt_amount or 0)
+        total_debt += debt
+        debts.append({
+            "sale_id": sale.id,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "item_count": item_count,
+            "total_amount": float(sale.total_amount or 0),
+            "paid_amount": float(sale.paid_amount or 0),
+            "debt_amount": debt
+        })
+
+    return {
+        "pending_count": len(debts),
+        "total_debt": total_debt,
+        "debts": debts
+    }

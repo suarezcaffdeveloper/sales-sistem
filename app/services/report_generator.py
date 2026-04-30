@@ -346,3 +346,380 @@ def _generate_period_report_pdf(db: Session, start_date: datetime, end_date: dat
     buffer.seek(0)
     
     return buffer
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EXPORTAR CAJA DIARIA — EXCEL
+# ─────────────────────────────────────────────────────────────────────────────
+
+def generate_daily_box_excel(db: Session, box_date_str: str, company_id: int):
+    """
+    Genera un Excel detallado de una caja diaria específica.
+    Incluye: resumen de la caja, listado de ventas, desglose de productos.
+    """
+    if not PANDAS_AVAILABLE:
+        raise Exception("openpyxl no está instalado")
+
+    from app.models.daily_box import DailyBox
+    from app.models.sale import Sale
+    from app.models.sale_item import SaleItem
+    from app.models.product import Product
+    from sqlalchemy import and_
+    from sqlalchemy.orm import joinedload
+
+    box = db.query(DailyBox).filter(
+        and_(DailyBox.date == box_date_str, DailyBox.company_id == company_id)
+    ).first()
+
+    date_start = datetime.strptime(box_date_str, "%Y-%m-%d")
+    date_end = date_start.replace(hour=23, minute=59, second=59)
+
+    if box:
+        sales = db.query(Sale).filter(
+            and_(Sale.daily_box_id == box.id, Sale.company_id == company_id)
+        ).options(joinedload(Sale.items).joinedload(SaleItem.product), joinedload(Sale.customer)).all()
+    else:
+        sales = db.query(Sale).filter(
+            and_(Sale.created_at >= date_start, Sale.created_at <= date_end, Sale.company_id == company_id)
+        ).options(joinedload(Sale.items).joinedload(SaleItem.product), joinedload(Sale.customer)).all()
+
+    wb = Workbook()
+
+    # ── Hoja 1: Resumen ──────────────────────────────────────────────────────
+    ws_summary = wb.active
+    ws_summary.title = "Resumen Caja"
+
+    DARK_BLUE  = "0F172A"
+    MID_BLUE   = "1E3A5F"
+    ACCENT     = "3B82F6"
+    SUCCESS    = "22C55E"
+    DANGER     = "EF4444"
+    LIGHT_ROW  = "F0F4FF"
+    WHITE      = "FFFFFF"
+    GRAY       = "94A3B8"
+
+    def h_font(bold=True, color=WHITE, size=11):
+        return Font(bold=bold, color=color, size=size, name="Calibri")
+
+    def fill(hex_color):
+        return PatternFill(start_color=hex_color, end_color=hex_color, fill_type="solid")
+
+    def border():
+        thin = Side(style="thin", color="CBD5E1")
+        return Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    ws_summary.column_dimensions["A"].width = 30
+    ws_summary.column_dimensions["B"].width = 22
+
+    # Título
+    ws_summary.merge_cells("A1:B1")
+    ws_summary["A1"] = f"REPORTE DE CAJA DIARIA — {date_start.strftime('%d/%m/%Y')}"
+    ws_summary["A1"].font = h_font(size=14)
+    ws_summary["A1"].fill = fill(DARK_BLUE)
+    ws_summary["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws_summary.row_dimensions[1].height = 30
+
+    if box:
+        status_text = "ABIERTA" if box.status == "open" else "CERRADA"
+        box_rows = [
+            ("Estado de caja", status_text),
+            ("Apertura", box.opened_at.strftime("%H:%M") if box.opened_at else "—"),
+            ("Cierre", box.closed_at.strftime("%H:%M") if box.closed_at else "—"),
+            ("Monto inicial", f"${box.opening_balance or 0:.2f}"),
+            ("Monto final", f"${box.closing_balance or 0:.2f}" if box.closing_balance else "—"),
+        ]
+        for i, (label, value) in enumerate(box_rows, start=2):
+            ws_summary[f"A{i}"] = label
+            ws_summary[f"B{i}"] = value
+            ws_summary[f"A{i}"].font = h_font(color="1E293B")
+            ws_summary[f"B{i}"].font = h_font(bold=False, color="1E293B")
+            bg = LIGHT_ROW if i % 2 == 0 else WHITE
+            ws_summary[f"A{i}"].fill = fill(bg)
+            ws_summary[f"B{i}"].fill = fill(bg)
+            for col in ["A", "B"]:
+                ws_summary[f"{col}{i}"].border = border()
+        row_offset = 2 + len(box_rows) + 1
+    else:
+        row_offset = 3
+
+    # Métricas de ventas
+    total_sales_amt = sum(s.total_amount or 0 for s in sales)
+    total_paid = sum(s.paid_amount or 0 for s in sales)
+    total_debt = sum(s.debt_amount or 0 for s in sales)
+    total_profit = 0.0
+    for sale in sales:
+        for item in sale.items:
+            p = item.product
+            if p:
+                total_profit += (p.price - (p.cost_price or 0)) * (item.quantity or 0)
+
+    ws_summary[f"A{row_offset}"] = "MÉTRICAS DEL DÍA"
+    ws_summary.merge_cells(f"A{row_offset}:B{row_offset}")
+    ws_summary[f"A{row_offset}"].font = h_font(size=12)
+    ws_summary[f"A{row_offset}"].fill = fill(MID_BLUE)
+    ws_summary[f"A{row_offset}"].alignment = Alignment(horizontal="center")
+    row_offset += 1
+
+    metrics = [
+        ("Cantidad de ventas", str(len(sales))),
+        ("Total facturado", f"${total_sales_amt:.2f}"),
+        ("Total cobrado", f"${total_paid:.2f}"),
+        ("Deuda generada", f"${total_debt:.2f}"),
+        ("Ganancia del día", f"${total_profit:.2f}"),
+        ("Margen", f"{(total_profit/total_sales_amt*100):.1f}%" if total_sales_amt > 0 else "—"),
+    ]
+    for i, (label, value) in enumerate(metrics):
+        r = row_offset + i
+        ws_summary[f"A{r}"] = label
+        ws_summary[f"B{r}"] = value
+        ws_summary[f"A{r}"].font = h_font(color="1E293B")
+        ws_summary[f"B{r}"].font = h_font(bold=True, color="1E293B")
+        bg = LIGHT_ROW if i % 2 == 0 else WHITE
+        for col in ["A", "B"]:
+            ws_summary[f"{col}{r}"].fill = fill(bg)
+            ws_summary[f"{col}{r}"].border = border()
+
+    # ── Hoja 2: Ventas detalladas ────────────────────────────────────────────
+    ws_sales = wb.create_sheet("Ventas del Día")
+    ws_sales.column_dimensions["A"].width = 10
+    ws_sales.column_dimensions["B"].width = 22
+    ws_sales.column_dimensions["C"].width = 14
+    ws_sales.column_dimensions["D"].width = 14
+    ws_sales.column_dimensions["E"].width = 14
+    ws_sales.column_dimensions["F"].width = 14
+    ws_sales.column_dimensions["G"].width = 12
+
+    headers = ["#Factura", "Cliente", "Hora", "Total", "Pagado", "Deuda", "Productos"]
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws_sales.cell(row=1, column=col_idx, value=h)
+        cell.font = h_font()
+        cell.fill = fill(ACCENT)
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = border()
+
+    for row_idx, sale in enumerate(sales, start=2):
+        vals = [
+            f"#{sale.id:06d}",
+            sale.customer.name if sale.customer else "Sin cliente",
+            sale.created_at.strftime("%H:%M") if sale.created_at else "—",
+            f"${sale.total_amount:.2f}",
+            f"${sale.paid_amount:.2f}",
+            f"${sale.debt_amount:.2f}",
+            len(sale.items)
+        ]
+        bg = LIGHT_ROW if row_idx % 2 == 0 else WHITE
+        for col_idx, val in enumerate(vals, start=1):
+            cell = ws_sales.cell(row=row_idx, column=col_idx, value=val)
+            cell.fill = fill(bg)
+            cell.alignment = Alignment(horizontal="center")
+            cell.border = border()
+            cell.font = Font(name="Calibri", color="1E293B")
+
+    # ── Hoja 3: Productos vendidos ───────────────────────────────────────────
+    ws_prod = wb.create_sheet("Productos Vendidos")
+    ws_prod.column_dimensions["A"].width = 28
+    ws_prod.column_dimensions["B"].width = 12
+    ws_prod.column_dimensions["C"].width = 14
+    ws_prod.column_dimensions["D"].width = 14
+    ws_prod.column_dimensions["E"].width = 14
+
+    prod_headers = ["Producto", "Unidades", "Ingreso", "Costo", "Ganancia"]
+    for col_idx, h in enumerate(prod_headers, start=1):
+        cell = ws_prod.cell(row=1, column=col_idx, value=h)
+        cell.font = h_font()
+        cell.fill = fill(SUCCESS)
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = border()
+
+    prod_totals = {}
+    for sale in sales:
+        for item in sale.items:
+            p = item.product
+            if not p:
+                continue
+            qty = item.quantity or 0
+            price = p.price or 0
+            cost = p.cost_price or 0
+            if p.name not in prod_totals:
+                prod_totals[p.name] = {"qty": 0, "revenue": 0, "cost": 0, "profit": 0}
+            prod_totals[p.name]["qty"] += qty
+            prod_totals[p.name]["revenue"] += price * qty
+            prod_totals[p.name]["cost"] += cost * qty
+            prod_totals[p.name]["profit"] += (price - cost) * qty
+
+    sorted_prods = sorted(prod_totals.items(), key=lambda x: x[1]["profit"], reverse=True)
+    for row_idx, (name, t) in enumerate(sorted_prods, start=2):
+        vals = [name, t["qty"], f"${t['revenue']:.2f}", f"${t['cost']:.2f}", f"${t['profit']:.2f}"]
+        bg = LIGHT_ROW if row_idx % 2 == 0 else WHITE
+        for col_idx, val in enumerate(vals, start=1):
+            cell = ws_prod.cell(row=row_idx, column=col_idx, value=val)
+            cell.fill = fill(bg)
+            cell.alignment = Alignment(horizontal="center")
+            cell.border = border()
+            cell.font = Font(name="Calibri", color="1E293B")
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EXPORTAR CAJA DIARIA — PDF
+# ─────────────────────────────────────────────────────────────────────────────
+
+def generate_daily_box_pdf(db: Session, box_date_str: str, company_id: int):
+    """
+    Genera un PDF de la caja diaria con resumen, ventas y productos.
+    """
+    if not REPORTLAB_AVAILABLE:
+        raise Exception("reportlab no está instalado")
+
+    from app.models.daily_box import DailyBox
+    from app.models.sale import Sale
+    from app.models.sale_item import SaleItem
+    from sqlalchemy import and_
+    from sqlalchemy.orm import joinedload
+
+    box = db.query(DailyBox).filter(
+        and_(DailyBox.date == box_date_str, DailyBox.company_id == company_id)
+    ).first()
+
+    date_start = datetime.strptime(box_date_str, "%Y-%m-%d")
+    date_end = date_start.replace(hour=23, minute=59, second=59)
+
+    if box:
+        sales = db.query(Sale).filter(
+            and_(Sale.daily_box_id == box.id, Sale.company_id == company_id)
+        ).options(joinedload(Sale.items).joinedload(SaleItem.product), joinedload(Sale.customer)).all()
+    else:
+        sales = db.query(Sale).filter(
+            and_(Sale.created_at >= date_start, Sale.created_at <= date_end, Sale.company_id == company_id)
+        ).options(joinedload(Sale.items).joinedload(SaleItem.product), joinedload(Sale.customer)).all()
+
+    total_sales_amt = sum(s.total_amount or 0 for s in sales)
+    total_paid = sum(s.paid_amount or 0 for s in sales)
+    total_debt = sum(s.debt_amount or 0 for s in sales)
+    total_profit = 0.0
+    prod_totals = {}
+    for sale in sales:
+        for item in sale.items:
+            p = item.product
+            if not p:
+                continue
+            qty = item.quantity or 0
+            price = p.price or 0
+            cost = p.cost_price or 0
+            total_profit += (price - cost) * qty
+            if p.name not in prod_totals:
+                prod_totals[p.name] = {"qty": 0, "revenue": 0, "profit": 0}
+            prod_totals[p.name]["qty"] += qty
+            prod_totals[p.name]["revenue"] += price * qty
+            prod_totals[p.name]["profit"] += (price - cost) * qty
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            leftMargin=0.75*inch, rightMargin=0.75*inch,
+                            topMargin=0.75*inch, bottomMargin=0.75*inch)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    BLUE = colors.HexColor("#1E3A5F")
+    ACCENT = colors.HexColor("#3B82F6")
+    LIGHT = colors.HexColor("#F0F4FF")
+    GREEN = colors.HexColor("#22C55E")
+    RED = colors.HexColor("#EF4444")
+
+    title_style = ParagraphStyle("title", fontSize=18, textColor=BLUE,
+                                 fontName="Helvetica-Bold", spaceAfter=4, alignment=1)
+    sub_style = ParagraphStyle("sub", fontSize=10, textColor=colors.HexColor("#64748B"),
+                               alignment=1, spaceAfter=16)
+    section_style = ParagraphStyle("section", fontSize=12, textColor=BLUE,
+                                   fontName="Helvetica-Bold", spaceBefore=14, spaceAfter=6)
+
+    elements.append(Paragraph("REPORTE DE CAJA DIARIA", title_style))
+    elements.append(Paragraph(date_start.strftime("%A, %d de %B de %Y").capitalize(), sub_style))
+
+    # Resumen
+    elements.append(Paragraph("Resumen del Día", section_style))
+    summary_rows = [
+        ["Concepto", "Valor"],
+        ["Cantidad de ventas", str(len(sales))],
+        ["Total facturado", f"${total_sales_amt:.2f}"],
+        ["Total cobrado", f"${total_paid:.2f}"],
+        ["Deuda generada", f"${total_debt:.2f}"],
+        ["Ganancia neta", f"${total_profit:.2f}"],
+        ["Margen de ganancia", f"{(total_profit/total_sales_amt*100):.1f}%" if total_sales_amt > 0 else "—"],
+    ]
+    if box:
+        summary_rows += [
+            ["Monto apertura", f"${box.opening_balance or 0:.2f}"],
+            ["Monto cierre", f"${box.closing_balance or 0:.2f}" if box.closing_balance else "—"],
+        ]
+
+    t_summary = Table(summary_rows, colWidths=[3.5*inch, 2.5*inch])
+    t_summary.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), ACCENT),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [LIGHT, colors.white]),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    elements.append(t_summary)
+
+    # Ventas
+    if sales:
+        elements.append(Paragraph("Detalle de Ventas", section_style))
+        sale_rows = [["#Factura", "Cliente", "Hora", "Total", "Pagado", "Deuda"]]
+        for s in sales:
+            sale_rows.append([
+                f"#{s.id:06d}",
+                (s.customer.name if s.customer else "Sin cliente")[:22],
+                s.created_at.strftime("%H:%M") if s.created_at else "—",
+                f"${s.total_amount:.2f}",
+                f"${s.paid_amount:.2f}",
+                f"${s.debt_amount:.2f}",
+            ])
+        t_sales = Table(sale_rows, colWidths=[1*inch, 2*inch, 0.8*inch, 1.1*inch, 1.1*inch, 1*inch])
+        t_sales.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), GREEN),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [LIGHT, colors.white]),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(t_sales)
+
+    # Productos
+    if prod_totals:
+        elements.append(Paragraph("Productos Vendidos", section_style))
+        sorted_prods = sorted(prod_totals.items(), key=lambda x: x[1]["profit"], reverse=True)
+        prod_rows = [["Producto", "Unidades", "Ingresos", "Ganancia"]]
+        for name, t in sorted_prods:
+            prod_rows.append([name[:30], str(t["qty"]), f"${t['revenue']:.2f}", f"${t['profit']:.2f}"])
+        t_prod = Table(prod_rows, colWidths=[2.5*inch, 1*inch, 1.5*inch, 1.5*inch])
+        t_prod.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), BLUE),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [LIGHT, colors.white]),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(t_prod)
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
