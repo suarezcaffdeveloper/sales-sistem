@@ -3,7 +3,7 @@ from app.models.company import Company
 from app.models.user import User
 from passlib.context import CryptContext
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 def seed_demo():
     db = SessionLocal()
