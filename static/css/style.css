@@ -1175,6 +1175,46 @@ tbody td:first-child {
     box-shadow: none;
 }
 
+.login-demo-banner {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
+.login-demo-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-1);
+}
+
+.login-demo-btn {
+    width: 100%;
+    padding: 0.65rem 1rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+
+.login-demo-btn:hover {
+    background: #7fa0ff;
+    transform: translateY(-1px);
+}
+
+.login-demo-hint {
+    margin: 0.65rem 0 0;
+    font-size: 0.78rem;
+    color: var(--text-3);
+}
+
 .login-divider {
     height: 1px;
     background: var(--border);

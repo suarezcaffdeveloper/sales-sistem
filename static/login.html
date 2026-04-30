@@ -52,6 +52,14 @@
             </button>
         </form>
 
+        <div class="login-demo-banner">
+            <p class="login-demo-title">🚀 Probá el sistema sin registrarte</p>
+            <button type="button" class="login-demo-btn" onclick="loginDemo()">
+                👉 Probar demo
+            </button>
+            <p class="login-demo-hint">Usuario: <strong>demo</strong> &nbsp;·&nbsp; Contraseña: <strong>demo123</strong></p>
+        </div>
+
         <div class="login-divider"></div>
 
         <div class="login-footer">
@@ -110,5 +118,12 @@
 </div>
 
 <script src="/js/auth.js"></script>
+<script>
+function loginDemo() {
+    document.getElementById('username').value = 'demo';
+    document.getElementById('password').value = 'demo123';
+    document.getElementById('login-form').dispatchEvent(new Event('submit'));
+}
+</script>
 </body>
 </html>
