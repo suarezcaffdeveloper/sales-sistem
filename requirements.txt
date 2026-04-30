@@ -41,3 +41,4 @@ wrapt==2.1.2
 
 python-dotenv
 pysqlite3-binary
+pandas
