@@ -134,12 +134,7 @@ function handleSupplierSearch(e) {
         const div = document.createElement('div');
         div.className = 'search-result-item';
         
-        const highlightName = supplier.name.replace(
-            new RegExp(`(${searchTerm})`, 'gi'),
-            '<strong>$1</strong>'
-        );
-        
-        div.innerHTML = `${highlightName} <span style="font-size: 0.85rem; color: #999;">${supplier.email || 'Sin email'}</span>`;
+        div.innerHTML = `${supplier.name} <span style="font-size: 0.85rem; color: #999;">${supplier.email || 'Sin email'}</span>`;
         div.onclick = () => selectSupplier(supplier);
         supplierSearchResults.appendChild(div);
     });

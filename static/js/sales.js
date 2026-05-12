@@ -386,14 +386,14 @@ async function completeSale() {
             return;
         }
 
-        // Obtener detalles completos de la venta para el ticket
+        // Si hay pago inicial, registrarlo PRIMERO para que el ticket refleje el estado correcto
         const saleId = data.id;
-        await fetchAndShowTicket(saleId);
-        
-        // Si hay pago inicial, registrarlo también
         if (initialPaymentAmount > 0) {
             await registerPayment(saleId, initialPaymentAmount);
         }
+
+        // Obtener detalles completos de la venta para el ticket (ya con el pago reflejado)
+        await fetchAndShowTicket(saleId);
         
         resetSaleForm();
         loadProducts(); // Recargar productos para actualizar stock

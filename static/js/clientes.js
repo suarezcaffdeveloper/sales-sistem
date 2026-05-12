@@ -245,34 +245,32 @@ function showError(message) {
 
 // FILTRAR CLIENTES
 function filterCustomers(searchTerm) {
+    // Eliminar fila "sin resultados" previa si existe
+    const existing = customersTbody.querySelector('.no-results-row');
+    if (existing) existing.remove();
+
     const rows = customersTbody.querySelectorAll('tr');
-    
-    if (rows.length === 0) return;
-    
+
+    if (rows.length === 0) {
+        if (searchTerm === '') loadCustomers();
+        return;
+    }
+
     rows.forEach(row => {
-        // Obtener el texto de todas las celdas
         const cells = row.querySelectorAll('td');
         let text = '';
-        
-        // Buscar en todas las columnas excepto la última (acciones)
         for (let i = 0; i < cells.length - 1; i++) {
             text += cells[i].textContent.toLowerCase() + ' ';
         }
-        
-        // Mostrar u ocultar la fila según coincida con la búsqueda
-        if (text.includes(searchTerm)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
     });
-    
-    // Verificar si hay al menos una fila visible
+
     const visibleRows = Array.from(rows).some(row => row.style.display !== 'none');
-    
-    // Si no hay resultados, mostrar mensaje
     if (!visibleRows && searchTerm !== '') {
-        customersTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #999;">No se encontraron clientes con "' + searchTerm.toUpperCase() + '"</td></tr>';
+        const tr = document.createElement('tr');
+        tr.className = 'no-results-row';
+        tr.innerHTML = '<td colspan="6" style="text-align: center; padding: 2rem; color: #999;">No se encontraron clientes con "' + searchTerm.toUpperCase() + '"</td>';
+        customersTbody.appendChild(tr);
     }
 }
 
