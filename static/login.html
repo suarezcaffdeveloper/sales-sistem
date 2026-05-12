@@ -52,12 +52,17 @@
             </button>
         </form>
 
-        <div class="login-demo-banner">
-            <p class="login-demo-title">🚀 Probá el sistema sin registrarte</p>
+        <div class="login-or-divider"><span>o</span></div>
+
+        <div class="login-demo-section">
+            <p class="login-demo-label">🚀 Probá el sistema sin registrarte</p>
             <button type="button" class="login-demo-btn" onclick="loginDemo()">
-                👉 Probar demo
+                Entrar al demo
             </button>
-            <p class="login-demo-hint">Usuario: <strong>demo</strong> &nbsp;·&nbsp; Contraseña: <strong>demo123</strong></p>
+            <div class="login-demo-credentials">
+                <span class="login-demo-chip"><span class="chip-label">usuario</span>demo</span>
+                <span class="login-demo-chip"><span class="chip-label">contraseña</span>demo123</span>
+            </div>
         </div>
 
         <div class="login-divider"></div>
@@ -98,6 +103,16 @@
                     type="password"
                     id="register-password"
                     placeholder="Mínimo 6 caracteres"
+                    required
+                >
+            </div>
+
+            <div class="login-form-group">
+                <label for="register-password-confirm">Verificar contraseña</label>
+                <input
+                    type="password"
+                    id="register-password-confirm"
+                    placeholder="Repetí tu contraseña"
                     required
                 >
             </div>

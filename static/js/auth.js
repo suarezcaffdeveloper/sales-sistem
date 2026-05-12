@@ -80,14 +80,20 @@ async function handleRegister(e) {
     
     const username = document.getElementById('register-username').value.trim();
     const password = document.getElementById('register-password').value;
+    const passwordConfirm = document.getElementById('register-password-confirm').value;
 
-    if (!username || !password) {
+    if (!username || !password || !passwordConfirm) {
         showError('Por favor completa todos los campos', registerError);
         return;
     }
 
     if (password.length < 6) {
         showError('La contraseña debe tener al menos 6 caracteres', registerError);
+        return;
+    }
+
+    if (password !== passwordConfirm) {
+        showError('Las contraseñas no coinciden', registerError);
         return;
     }
 
@@ -109,7 +115,7 @@ async function handleRegister(e) {
         }
 
         // Mostrar mensaje de éxito
-        showError('¡Cuenta creada exitosamente! Ahora inicia sesión.', registerError);
+        showSuccess('¡Cuenta creada exitosamente! Ahora inicia sesión.', registerError);
         registerForm.reset();
 
         // Limpiar y cerrar modal después de 1.5 segundos
@@ -131,11 +137,22 @@ async function handleRegister(e) {
 // ============================================
 function showError(message, element) {
     element.textContent = message;
+    element.classList.remove('login-success');
     element.classList.add('show');
     
     // Auto-hide después de 5 segundos
     setTimeout(() => {
         element.classList.remove('show');
+    }, 5000);
+}
+
+function showSuccess(message, element) {
+    element.textContent = message;
+    element.classList.add('login-success', 'show');
+    
+    // Auto-hide después de 5 segundos
+    setTimeout(() => {
+        element.classList.remove('login-success', 'show');
     }, 5000);
 }
 
@@ -148,7 +165,7 @@ function showRegisterForm(e) {
 function hideRegisterForm() {
     registerModal.style.display = 'none';
     registerForm.reset();
-    registerError.classList.remove('show');
+    registerError.classList.remove('show', 'login-success');
 }
 
 // Cerrar modal si se clica fuera
