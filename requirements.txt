@@ -42,3 +42,6 @@ wrapt==2.1.2
 python-dotenv
 pysqlite3-binary
 pandas
+
+# Solo para desarrollo/CI (tests automatizados en tests/)
+pytest
