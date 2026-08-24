@@ -130,8 +130,8 @@ async function saveCustomer() {
         return;
     }
 
-    // Validar formato del nombre del cliente
-    const nameRegex = /^[a-zA-Z\s]+$/;
+    // Validar formato del nombre del cliente (incluye tildes, ñ y demás letras unicode)
+    const nameRegex = /^[\p{L}\s]+$/u;
     if (!nameRegex.test(name)) {
         showError('El nombre del cliente solo puede contener letras y espacios');
         return;
@@ -154,7 +154,7 @@ async function saveCustomer() {
 
     // Validar formato de dirección (opcional)
     if (address) {
-        const addressRegex = /^[a-zA-Z0-9\s,.-]+$/;
+        const addressRegex = /^[\p{L}\p{N}\s,.-]+$/u;
         if (!addressRegex.test(address)) {
             showError('La dirección no tiene un formato válido');
             return;

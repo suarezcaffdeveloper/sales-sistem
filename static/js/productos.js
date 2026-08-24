@@ -159,7 +159,7 @@ async function saveProduct() {
         return;
     }
 
-    if (!stock || stock < 0 || isNaN(stock)) {
+    if (isNaN(stock) || stock < 0) {
         showError('Ingresa una cantidad de stock válida');
         return;
     }
