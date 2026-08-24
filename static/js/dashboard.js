@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStaleProducts();
     loadInactiveCustomers();
     loadBusinessInsights();
+    loadPaymentMethodDiscountsConfig();
+    loadReorderAlerts();
 
     // Cerrar modal de gráfico al hacer click fuera
     const chartModal = document.getElementById('sales-chart-modal');
@@ -186,6 +188,153 @@ function renderLowStockAlerts(products) {
     lowStockAlertsEl.appendChild(listDiv);
 }
 
+// ========== ALERTAS DE REPOSICIÓN (velocidad de venta) ==========
+
+async function loadReorderAlerts() {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/statistics/reorder-alerts`);
+        if (!response.ok) return;
+        const data = await response.json();
+        renderReorderAlerts(data);
+    } catch (error) {
+        console.error('Error cargando alertas de reposición:', error);
+    }
+}
+
+function renderReorderAlerts(products) {
+    const container = el('reorder-alerts-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!products || products.length === 0) {
+        return;
+    }
+
+    const urgencyMeta = {
+        urgente: { label: 'URGENTE', color: 'var(--danger)', bg: 'var(--danger-dim)' },
+        pronto: { label: 'PRONTO', color: 'var(--warning)', bg: 'var(--warning-dim)' },
+        atencion: { label: 'ATENCIÓN', color: 'var(--accent)', bg: 'var(--accent-dim)' }
+    };
+
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert-box warning';
+    alertDiv.innerHTML = `
+        <div class="alert-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+        </div>
+        <div class="alert-content">
+            <h4>Recomendación de reposición</h4>
+            <p>${products.length} producto(s) se están vendiendo a un ritmo que los dejaría sin stock pronto.</p>
+        </div>
+    `;
+    container.appendChild(alertDiv);
+
+    const listDiv = document.createElement('div');
+    listDiv.className = 'form-section';
+    listDiv.style.marginBottom = '2rem';
+    listDiv.innerHTML = '<h3>Productos a reponer</h3><p style="color: var(--text-3); font-size: 0.875rem; margin-bottom: 1.25rem;">Calculado según las unidades vendidas por día en los últimos 30 días.</p>';
+
+    const table = document.createElement('table');
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Stock actual</th>
+                <th>Ventas/día</th>
+                <th>Días de stock restante</th>
+                <th>Urgencia</th>
+                <th>Cantidad sugerida</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${products.map(p => {
+                const meta = urgencyMeta[p.urgency] || urgencyMeta.atencion;
+                return `
+                    <tr>
+                        <td><strong>${p.name}</strong></td>
+                        <td>${p.stock}</td>
+                        <td>${p.daily_velocity}</td>
+                        <td><span style="font-weight: 700; color: ${meta.color};">${p.days_of_stock}</span></td>
+                        <td><span style="background: ${meta.bg}; color: ${meta.color}; padding: 0.25rem 0.75rem; border-radius: 4px; font-weight: 600; font-size: 0.85rem;">${meta.label}</span></td>
+                        <td>${p.suggested_reorder_qty} un.</td>
+                    </tr>
+                `;
+            }).join('')}
+        </tbody>
+    `;
+    listDiv.appendChild(table);
+    container.appendChild(listDiv);
+}
+
+// ========== DESCUENTOS POR MÉTODO DE PAGO ==========
+
+const PAYMENT_METHOD_LABELS = { efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta' };
+
+async function loadPaymentMethodDiscountsConfig() {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/payment-method-discounts`);
+        if (!response.ok) return;
+        const data = await response.json();
+        renderPaymentMethodDiscounts(data);
+    } catch (error) {
+        console.error('Error cargando descuentos por método de pago:', error);
+    }
+}
+
+function renderPaymentMethodDiscounts(discounts) {
+    const tbody = el('payment-method-discounts-tbody');
+    if (!tbody) return;
+
+    if (!discounts || discounts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:var(--text-3);">No hay métodos de pago configurables</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = discounts.map(d => `
+        <tr>
+            <td><strong>${PAYMENT_METHOD_LABELS[d.payment_method] || d.payment_method}</strong></td>
+            <td style="text-align: center;">
+                <input type="checkbox" id="pmd-active-${d.payment_method}" ${d.active ? 'checked' : ''} style="width: 1.1rem; height: 1.1rem; cursor: pointer;">
+            </td>
+            <td>
+                <input type="number" id="pmd-percent-${d.payment_method}" value="${d.discount_percent}" min="0" max="100" step="0.1"
+                       style="width: 90px; background: var(--navy-3); color: var(--text-1); border: 1px solid var(--border-2); border-radius: 6px; padding: 0.35rem 0.5rem;">
+                %
+            </td>
+            <td>
+                <button class="btn btn-secondary" style="margin: 0; padding: 0.4rem 0.9rem; font-size: 0.85rem;" onclick="savePaymentMethodDiscount('${d.payment_method}')">Guardar</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function savePaymentMethodDiscount(method) {
+    const activeInput = el(`pmd-active-${method}`);
+    const percentInput = el(`pmd-percent-${method}`);
+    const active = activeInput ? activeInput.checked : false;
+    const discountPercent = parseFloat(percentInput ? percentInput.value : 0) || 0;
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/payment-method-discounts/${method}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ discount_percent: discountPercent, active })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            showError(data.detail || 'Error al guardar el descuento');
+            return;
+        }
+
+        loadPaymentMethodDiscountsConfig();
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Error de conexión al guardar el descuento');
+    }
+}
+
 // MOSTRAR ERROR
 function showError(message) {
     const errorModal = el('error-modal');
@@ -267,6 +416,7 @@ function renderPendingDebtsPanel(data) {
     
     const pendingCount = data.pending_count || 0;
     const totalDebt = data.total_debt || 0;
+    const overdueCount = data.overdue_count || 0;
     const debts = data.debts || [];
 
     // Actualizar la stat card de deuda total
@@ -274,14 +424,20 @@ function renderPendingDebtsPanel(data) {
     const debtCountEl = document.getElementById('debt-count');
     if (totalDebtEl) totalDebtEl.textContent = `$${totalDebt.toFixed(2)}`;
     if (debtCountEl) debtCountEl.textContent = pendingCount;
-    
+
     let tableHTML = `
         <div class="form-section mt-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem;">
                 <h3>Facturas Adeudadas</h3>
-                <span style="background: var(--danger-dim); color: var(--danger); padding: 0.5rem 1rem; border-radius: var(--radius-sm); font-weight: 600;">
-                    ${pendingCount} factura${pendingCount !== 1 ? 's'  : ''} • Deuda Total: $${totalDebt.toFixed(2)}
-                </span>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    ${overdueCount > 0 ? `
+                    <span style="background: var(--danger-dim); color: var(--danger); padding: 0.5rem 1rem; border-radius: var(--radius-sm); font-weight: 600;">
+                        ${overdueCount} vencida${overdueCount !== 1 ? 's' : ''}
+                    </span>` : ''}
+                    <span style="background: var(--danger-dim); color: var(--danger); padding: 0.5rem 1rem; border-radius: var(--radius-sm); font-weight: 600;">
+                        ${pendingCount} factura${pendingCount !== 1 ? 's'  : ''} • Deuda Total: $${totalDebt.toFixed(2)}
+                    </span>
+                </div>
             </div>
     `;
 
@@ -300,6 +456,7 @@ function renderPendingDebtsPanel(data) {
                             <th style="text-align: right;">Total</th>
                             <th style="text-align: right;">Pagado</th>
                             <th style="text-align: right;">Deuda</th>
+                            <th style="text-align: left;">Vencimiento</th>
                             <th style="text-align: center;">Acción</th>
                         </tr>
                     </thead>
@@ -316,25 +473,93 @@ function renderPendingDebtsPanel(data) {
                     <td style="text-align: right; font-weight: 600;">$${debt.total_amount.toFixed(2)}</td>
                     <td style="text-align: right; color: var(--success);">$${debt.paid_amount.toFixed(2)}</td>
                     <td style="text-align: right; font-weight: 600; color: var(--danger);">$${debt.debt_amount.toFixed(2)}</td>
-                    <td style="text-align: center;">
+                    <td style="text-align: left;">${renderDueDateBadge(debt)}</td>
+                    <td style="text-align: center; white-space: nowrap;">
                         <button class="btn btn-primary" onclick="openPaymentModal(${debt.sale_id}, '${debt.customer_name}', ${debt.total_amount}, ${debt.paid_amount}, ${debt.debt_amount})"
-                                style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                                style="padding: 0.5rem 1rem; font-size: 0.875rem; margin-bottom: 0.35rem;">
                             Pagar
+                        </button>
+                        <button class="btn btn-secondary" onclick="openDueDateModal(${debt.sale_id}, ${debt.due_date ? `'${debt.due_date}'` : 'null'})"
+                                style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                            Vencimiento
                         </button>
                     </td>
                 </tr>
             `;
         });
-        
+
         tableHTML += `
                     </tbody>
                 </table>
             </div>
         `;
     }
-    
+
     tableHTML += `</div>`;
     debtsContainer.innerHTML = tableHTML;
+}
+
+// Badge de estado de vencimiento para la tabla de deudas pendientes
+function renderDueDateBadge(debt) {
+    if (!debt.due_date) {
+        return '<span style="color: var(--text-3); font-size: 0.85rem;">Sin definir</span>';
+    }
+    const formatted = new Date(debt.due_date + 'T00:00:00').toLocaleDateString('es-ES');
+    const meta = {
+        vencida: { color: 'var(--danger)', bg: 'var(--danger-dim)', label: `Vencida hace ${debt.days_overdue} día${debt.days_overdue !== 1 ? 's' : ''}` },
+        por_vencer: { color: 'var(--warning)', bg: 'var(--warning-dim)', label: 'Vence pronto' },
+        al_dia: { color: 'var(--success)', bg: 'var(--success-dim)', label: 'Al día' }
+    }[debt.due_status] || { color: 'var(--text-2)', bg: 'transparent', label: '' };
+
+    return `
+        <div>
+            <span style="font-weight: 600;">${formatted}</span><br>
+            <span style="background: ${meta.bg}; color: ${meta.color}; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">${meta.label}</span>
+        </div>
+    `;
+}
+
+// ========== VENCIMIENTO DE DEUDA ==========
+
+function openDueDateModal(saleId, currentDueDate) {
+    const modal = document.getElementById('due-date-modal');
+    if (!modal) return;
+    document.getElementById('due-date-sale-id').textContent = String(saleId).padStart(6, '0');
+    document.getElementById('due-date-input').value = currentDueDate || '';
+    modal.dataset.saleId = saleId;
+    modal.classList.remove('hidden');
+}
+
+function closeDueDateModal() {
+    const modal = document.getElementById('due-date-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function saveDueDate() {
+    const modal = document.getElementById('due-date-modal');
+    const saleId = parseInt(modal.dataset.saleId);
+    const dueDate = document.getElementById('due-date-input').value || null;
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/sales/${saleId}/due-date`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ due_date: dueDate })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            showErrorDashboard(data.detail || 'Error al guardar el vencimiento');
+            return;
+        }
+
+        closeDueDateModal();
+        loadPendingDebts();
+    } catch (error) {
+        console.error('Error:', error);
+        showErrorDashboard('Error de conexión al guardar el vencimiento');
+    }
 }
 
 // ========== DEUDAS A PROVEEDORES (CUENTAS A PAGAR) ==========

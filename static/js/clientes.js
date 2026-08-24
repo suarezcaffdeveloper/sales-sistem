@@ -96,7 +96,7 @@ function renderCustomers() {
             <td>${customer.email}</td>
             <td>${customer.phone}</td>
             <td>${customer.address}</td>
-            <td style="white-space: nowrap;">
+            <td class="admin-only" style="white-space: nowrap;">
                 <button class="btn btn-view" onclick="editCustomer(${customer.id})" style="margin-right: 0.4rem;">Editar</button>
                 <button class="btn-danger" onclick="deleteCustomer(${customer.id})">Eliminar</button>
             </td>

@@ -11,6 +11,7 @@ class SaleItem(Base):
     product_id = Column(Integer, ForeignKey("products.id"))
 
     quantity = Column(Integer)
+    returned_quantity = Column(Integer, default=0)  # Unidades devueltas (devolución parcial)
 
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product")

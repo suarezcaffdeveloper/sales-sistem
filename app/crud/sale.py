@@ -12,18 +12,33 @@ from app.crud.daily_box import get_current_daily_box
 CAJERO_MAX_DISCOUNT_PERCENT = 15.0
 
 
-def _calculate_discount(subtotal_amount: float, sale_data: SaleCreate, role: str) -> tuple[float, float]:
+def _calculate_discount(subtotal_amount: float, sale_data: SaleCreate, role: str, db: Session, company_id: int) -> tuple[float, float]:
     """
     Calcula el descuento a aplicar sobre una venta y devuelve
     (discount_amount, discount_percent_para_mostrar).
     Valida que no se hayan mandado los dos tipos de descuento juntos, que
     no exceda el subtotal, y que un cajero no supere su tope permitido.
+
+    Si no se cargó un descuento manual, se aplica automáticamente el
+    descuento configurado por el admin para el método de pago elegido
+    (si tiene uno activo) — ver app.crud.payment_method_discount. Ese
+    descuento automático no está sujeto al tope de cajero: es una política
+    de la empresa que ya aprobó el admin al configurarla, no una decisión
+    del cajero en el momento.
     """
     discount_percent = sale_data.discount_percent
     discount_amount = sale_data.discount_amount
 
     if discount_percent and discount_amount:
         raise Exception("Elegí un solo tipo de descuento: porcentaje o monto fijo, no ambos")
+
+    auto_applied = False
+    if not discount_percent and not discount_amount:
+        from app.crud.payment_method_discount import get_active_discount_for_method
+        auto_percent = get_active_discount_for_method(db, company_id, sale_data.payment_method)
+        if auto_percent:
+            discount_percent = auto_percent
+            auto_applied = True
 
     if discount_percent:
         computed_amount = subtotal_amount * discount_percent / 100
@@ -37,7 +52,7 @@ def _calculate_discount(subtotal_amount: float, sale_data: SaleCreate, role: str
     if computed_amount > subtotal_amount:
         raise Exception("El descuento no puede ser mayor al subtotal de la venta")
 
-    if role == "cajero" and effective_percent > CAJERO_MAX_DISCOUNT_PERCENT:
+    if role == "cajero" and not auto_applied and effective_percent > CAJERO_MAX_DISCOUNT_PERCENT:
         raise Exception(
             f"Como cajero podés aplicar hasta {CAJERO_MAX_DISCOUNT_PERCENT:.0f}% de descuento. "
             f"Para más, pedile a un administrador que complete la venta."
@@ -73,7 +88,7 @@ def create_sale(db: Session, sale_data: SaleCreate, company_id: int, role: str =
             "quantity": item.quantity
         })
 
-    discount_amount, discount_percent = _calculate_discount(subtotal_amount, sale_data, role)
+    discount_amount, discount_percent = _calculate_discount(subtotal_amount, sale_data, role, db, company_id)
     total_amount = subtotal_amount - discount_amount
 
     # Validar pago inicial - pero SOLO para validación, no para guardar aquí
@@ -96,7 +111,8 @@ def create_sale(db: Session, sale_data: SaleCreate, company_id: int, role: str =
         discount_amount=float(discount_amount),
         paid_amount=0.0,  # Siempre 0 aquí, será actualizado por pagos
         debt_amount=float(total_amount),  # Inicialmente es el total
-        status="pendiente"  # Siempre pendiente al crear
+        status="pendiente",  # Siempre pendiente al crear
+        due_date=sale_data.due_date
     )
 
     db.add(sale)
@@ -148,11 +164,13 @@ def cancel_sale(db: Session, sale_id: int, company_id: int, reason: str = None):
     if sale.cancelled_at is not None:
         raise Exception("La venta ya fue anulada")
 
-    # Reponer stock de cada item
+    # Reponer stock de cada item — solo lo que seguía en poder del cliente
+    # (si ya se había hecho una devolución parcial, esas unidades ya se
+    # repusieron en ese momento y no hay que sumarlas de nuevo acá)
     for item in sale.items:
         product = db.query(Product).filter(Product.id == item.product_id).first()
         if product:
-            product.stock += item.quantity
+            product.stock += item.quantity - (item.returned_quantity or 0)
 
     refund_due = sale.paid_amount or 0.0
 
@@ -187,26 +205,35 @@ def get_sale_details(db: Session, sale_id: int, company_id: int):
     
     # Obtener items de la venta con detalles del producto
     items = db.query(
+        SaleItem.id.label("sale_item_id"),
         SaleItem.product_id,
         Product.name.label("product_name"),
         Product.price,
-        SaleItem.quantity
+        SaleItem.quantity,
+        SaleItem.returned_quantity
     ).join(Product).filter(SaleItem.sale_id == sale_id).all()
-    
+
     print(f"   ✓ Items encontrados: {len(items)}")
-    
+
     items_detail = []
+    has_returns = False
     for item in items:
         price = float(item.price) if item.price else 0.0
         quantity = float(item.quantity) if item.quantity else 0.0
+        returned_quantity = float(item.returned_quantity) if item.returned_quantity else 0.0
         subtotal = price * quantity
-        
+        if returned_quantity > 0:
+            has_returns = True
+
         items_detail.append({
+            "sale_item_id": item.sale_item_id,
             "product_id": item.product_id,
             "product_name": str(item.product_name) if item.product_name else "Desconocido",
             "quantity": quantity,
             "price": price,
-            "subtotal": subtotal
+            "subtotal": subtotal,
+            "returned_quantity": returned_quantity,
+            "remaining_quantity": quantity - returned_quantity
         })
         print(f"     - {item.product_name}: {quantity}x${price} = ${subtotal}")
     
@@ -231,7 +258,9 @@ def get_sale_details(db: Session, sale_id: int, company_id: int):
         "status": sale.status or "pendiente",
         "cancelled": sale.cancelled_at is not None,
         "cancelled_at": sale.cancelled_at,
-        "cancel_reason": sale.cancel_reason
+        "cancel_reason": sale.cancel_reason,
+        "due_date": sale.due_date.isoformat() if sale.due_date else None,
+        "has_returns": has_returns
     }
     
     print(f"   ✅ Detalles preparados: {len(items_detail)} items, Total ${result['total_amount']}")
@@ -251,7 +280,8 @@ def get_all_sales(db: Session, company_id: int):
         customer_name = sale.customer.name if sale.customer else "Cliente desconocido"
         customer_phone = sale.customer.phone if sale.customer else "-"
         item_count = len(sale.items) if sale.items else 0
-        
+        has_returns = any((item.returned_quantity or 0) > 0 for item in sale.items) if sale.items else False
+
         sales_list.append({
             "id": sale.id,
             "customer_name": customer_name,
@@ -267,10 +297,27 @@ def get_all_sales(db: Session, company_id: int):
             "item_count": item_count,
             "cancelled": sale.cancelled_at is not None,
             "cancelled_at": sale.cancelled_at,
-            "cancel_reason": sale.cancel_reason
+            "cancel_reason": sale.cancel_reason,
+            "due_date": sale.due_date.isoformat() if sale.due_date else None,
+            "has_returns": has_returns
         })
     
     return sales_list
+
+
+def _due_status(due_date, today) -> str:
+    """
+    Clasifica el vencimiento de una deuda: "vencida" (ya pasó la fecha),
+    "por_vencer" (vence en los próximos 3 días), "al_dia" (vence más
+    adelante) o "sin_vencimiento" (no se definió fecha).
+    """
+    if due_date is None:
+        return "sin_vencimiento"
+    if due_date < today:
+        return "vencida"
+    if (due_date - today).days <= 3:
+        return "por_vencer"
+    return "al_dia"
 
 
 def get_pending_debts(db: Session, company_id: int):
@@ -281,6 +328,8 @@ def get_pending_debts(db: Session, company_id: int):
         Sale.total_amount > 0
     ).order_by(desc(Sale.created_at)).all()
 
+    today = datetime.utcnow().date()
+
     debts = []
     total_debt = 0.0
     for sale in sales:
@@ -289,6 +338,7 @@ def get_pending_debts(db: Session, company_id: int):
         item_count = len(sale.items) if sale.items else 0
         debt = float(sale.debt_amount or 0)
         total_debt += debt
+        due_status = _due_status(sale.due_date, today)
         debts.append({
             "sale_id": sale.id,
             "customer_name": customer_name,
@@ -296,11 +346,36 @@ def get_pending_debts(db: Session, company_id: int):
             "item_count": item_count,
             "total_amount": float(sale.total_amount or 0),
             "paid_amount": float(sale.paid_amount or 0),
-            "debt_amount": debt
+            "debt_amount": debt,
+            "due_date": sale.due_date.isoformat() if sale.due_date else None,
+            "due_status": due_status,
+            "days_overdue": (today - sale.due_date).days if due_status == "vencida" else None
         })
+
+    # Vencidas primero, después las que están por vencer, ordenadas por lo más urgente
+    status_order = {"vencida": 0, "por_vencer": 1, "al_dia": 2, "sin_vencimiento": 3}
+    debts.sort(key=lambda d: (status_order[d["due_status"]], d["due_date"] or ""))
 
     return {
         "pending_count": len(debts),
         "total_debt": total_debt,
+        "overdue_count": sum(1 for d in debts if d["due_status"] == "vencida"),
         "debts": debts
     }
+
+
+def update_sale_due_date(db: Session, sale_id: int, company_id: int, due_date):
+    """Define o cambia la fecha de vencimiento de la deuda de una venta."""
+    sale = db.query(Sale).filter(
+        Sale.id == sale_id,
+        Sale.company_id == company_id
+    ).first()
+
+    if not sale:
+        raise Exception(f"Venta {sale_id} no existe")
+
+    sale.due_date = due_date
+    db.commit()
+    db.refresh(sale)
+
+    return {"id": sale.id, "due_date": sale.due_date.isoformat() if sale.due_date else None}

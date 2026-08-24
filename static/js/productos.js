@@ -125,7 +125,7 @@ function renderProducts() {
             <td>${margin}%</td>
             <td>${product.stock}</td>
             <td>${supplier ? supplier.name : '-'}</td>
-            <td style="white-space: nowrap;">
+            <td class="admin-only" style="white-space: nowrap;">
                 <button class="btn btn-view" onclick="editProduct(${product.id})" style="margin-right: 0.4rem;">Editar</button>
                 <button class="btn-danger" onclick="deleteProduct(${product.id})">Eliminar</button>
             </td>

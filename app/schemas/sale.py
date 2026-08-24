@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 class SaleItemCreate(BaseModel):
     product_id: int
@@ -12,8 +12,21 @@ class SaleCreate(BaseModel):
     initial_payment: float = Field(default=0, ge=0)  # Pago inicial (opcional)
     discount_percent: Optional[float] = Field(default=None, ge=0, le=100)  # Descuento como % (opcional)
     discount_amount: Optional[float] = Field(default=None, ge=0)  # Descuento en $ (opcional, excluyente con el %)
+    payment_method: Optional[str] = None  # Determina el descuento automático por método de pago, si hay uno activo
+    due_date: Optional[date] = None  # Vencimiento de la deuda, si la venta queda a crédito (opcional)
 
 class SaleCancelRequest(BaseModel):
+    reason: Optional[str] = None
+
+class SaleDueDateUpdate(BaseModel):
+    due_date: Optional[date] = None
+
+class SaleReturnItemRequest(BaseModel):
+    sale_item_id: int
+    quantity: int = Field(gt=0)
+
+class SaleReturnRequest(BaseModel):
+    items: List[SaleReturnItemRequest]
     reason: Optional[str] = None
 
 class SaleResponse(BaseModel):

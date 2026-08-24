@@ -10,3 +10,6 @@ from .daily_box import DailyBox
 from .purchase import Purchase
 from .purchase_item import PurchaseItem
 from .supplier_payment import SupplierPayment
+from .payment_method_discount import PaymentMethodDiscount
+from .sale_return import SaleReturn
+from .sale_return_item import SaleReturnItem

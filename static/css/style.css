@@ -1353,3 +1353,10 @@ tbody td:first-child {
         grid-template-columns: 1fr 1fr;
     }
 }
+
+/* ─── VISIBILIDAD POR ROL ────────────────────────────────── */
+/* Elementos exclusivos de admin (crear/editar/eliminar). El cajero puede
+   ver y buscar productos/clientes, pero no mutarlos. */
+.role-cajero .admin-only {
+    display: none !important;
+}

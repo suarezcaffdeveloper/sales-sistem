@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, String
+from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, String, Date
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.database import Base
@@ -18,6 +18,7 @@ class Sale(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     cancelled_at = Column(DateTime, nullable=True)  # Si no es None, la venta fue anulada
     cancel_reason = Column(String, nullable=True)
+    due_date = Column(Date, nullable=True)  # Vencimiento de la deuda (fiado), si se definió uno
 
     customer_id = Column(Integer, ForeignKey("customers.id"))
     daily_box_id = Column(Integer, ForeignKey("daily_boxes.id"), nullable=True)

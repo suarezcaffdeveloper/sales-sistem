@@ -5,6 +5,7 @@ let cartItems = [];
 let selectedCustomer = null;
 let selectedCustomerId = null;
 let currentDailyBox = null;  // Estado actual de la caja
+let paymentMethodDiscounts = {};  // { efectivo: 5, transferencia: 0, ... } — solo métodos con descuento activo
 
 // DOM Elements - Se inicializarán en DOMContentLoaded
 let customerSearch;
@@ -26,6 +27,7 @@ let errorModal;
 let loader;
 let paymentMethod;
 let initialPayment;
+let saleDueDate;
 let discountType;
 let discountValue;
 let discountRow;
@@ -55,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loader = document.getElementById('loader');
     paymentMethod = document.getElementById('payment-method');
     initialPayment = document.getElementById('initial-payment');
+    saleDueDate = document.getElementById('sale-due-date');
     discountType = document.getElementById('discount-type');
     discountValue = document.getElementById('discount-value');
     discountRow = document.getElementById('discount-row');
@@ -70,6 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     displayUsername();
     loadCustomers();
     loadProducts();
+    loadPaymentMethodDiscounts();
     setupEventListeners();
     checkDailyBoxStatus();  // Verificar estado de caja
     setupBoxRefresh();      // Configurar refrescado automático de caja cada 5 segundos
@@ -105,6 +109,7 @@ function setupEventListeners() {
         updateTotals();
     });
     discountValue.addEventListener('input', updateTotals);
+    paymentMethod.addEventListener('change', updateTotals);
 
     // Tecla Enter en cantidad
     productQuantity.addEventListener('keypress', (e) => {
@@ -134,6 +139,10 @@ function setupEventListeners() {
     // Modal de anular venta
     document.getElementById('cancel-sale-close-btn')?.addEventListener('click', closeCancelSaleModal);
     document.getElementById('cancel-sale-confirm-btn')?.addEventListener('click', submitCancelSale);
+
+    // Modal de devolución parcial
+    document.getElementById('return-cancel-btn')?.addEventListener('click', closeReturnModal);
+    document.getElementById('return-confirm-btn')?.addEventListener('click', submitReturn);
 }
 
 // CARGAR CLIENTES
@@ -200,6 +209,24 @@ function selectCustomer(customer) {
     
     console.log('✅ Cliente seleccionado - ID:', selectedCustomerId);
     updateCompleteButton();
+}
+
+// CARGAR DESCUENTOS AUTOMÁTICOS POR MÉTODO DE PAGO (configurados por el admin)
+async function loadPaymentMethodDiscounts() {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/payment-method-discounts`);
+        if (!response.ok) return;
+        const data = await response.json();
+        paymentMethodDiscounts = {};
+        (data || []).forEach(d => {
+            if (d.active && d.discount_percent > 0) {
+                paymentMethodDiscounts[d.payment_method] = d.discount_percent;
+            }
+        });
+        updateTotals();
+    } catch (error) {
+        console.error('Error cargando descuentos por método de pago:', error);
+    }
 }
 
 // CARGAR PRODUCTOS
@@ -368,21 +395,36 @@ function setupDiscountHint() {
         : '';
 }
 
-// Calcula el monto de descuento a partir del tipo/valor cargados y el subtotal
+// Descuento automático activo para el método de pago seleccionado (0 si no hay ninguno)
+function getActivePaymentMethodDiscountPercent() {
+    const method = paymentMethod ? paymentMethod.value : null;
+    if (!method) return 0;
+    return paymentMethodDiscounts[method] || 0;
+}
+
+// Calcula el monto de descuento a partir del tipo/valor cargados y el subtotal.
+// El descuento manual (si se cargó uno) siempre tiene prioridad sobre el
+// automático por método de pago — igual que hace el backend.
 function getDiscountAmount(subtotal) {
+    if (subtotal <= 0) return 0;
+
     const type = discountType ? discountType.value : 'none';
     const value = parseFloat(discountValue ? discountValue.value : 0) || 0;
 
-    if (type === 'none' || value <= 0 || subtotal <= 0) {
-        return 0;
+    if (type !== 'none' && value > 0) {
+        if (type === 'percent') {
+            return subtotal * Math.min(value, 100) / 100;
+        }
+        // Monto fijo, nunca más que el subtotal
+        return Math.min(value, subtotal);
     }
 
-    if (type === 'percent') {
-        return subtotal * Math.min(value, 100) / 100;
+    const autoPercent = getActivePaymentMethodDiscountPercent();
+    if (autoPercent > 0) {
+        return subtotal * autoPercent / 100;
     }
 
-    // Monto fijo, nunca más que el subtotal
-    return Math.min(value, subtotal);
+    return 0;
 }
 
 // ACTUALIZAR TOTALES
@@ -406,9 +448,13 @@ function updateTotals() {
         if (discountAmount > 0) {
             discountRow.style.display = 'flex';
             const type = discountType ? discountType.value : 'none';
-            discountLabel.textContent = type === 'percent'
-                ? `Descuento (${discountValue.value}%)`
-                : 'Descuento';
+            if (type === 'percent') {
+                discountLabel.textContent = `Descuento (${discountValue.value}%)`;
+            } else if (type === 'fixed') {
+                discountLabel.textContent = 'Descuento';
+            } else {
+                discountLabel.textContent = `Descuento por método de pago (${getActivePaymentMethodDiscountPercent()}%)`;
+            }
             discountDisplay.textContent = `-$${discountAmount.toFixed(2)}`;
         } else {
             discountRow.style.display = 'none';
@@ -456,8 +502,13 @@ async function completeSale() {
             product_id: item.product_id,
             quantity: item.quantity
         })),
-        initial_payment: initialPaymentAmount
+        initial_payment: initialPaymentAmount,
+        payment_method: paymentMethod ? paymentMethod.value : 'efectivo'
     };
+
+    if (saleDueDate && saleDueDate.value) {
+        saleData.due_date = saleDueDate.value;
+    }
 
     const discAmount = parseFloat(discountValue ? discountValue.value : 0) || 0;
     if (discountType && discountType.value === 'percent' && discAmount > 0) {
@@ -573,9 +624,15 @@ function showTicketModal(saleDetails) {
     const ticketHTML = generateTicketHTML(saleDetails);
     document.getElementById('ticket-content').innerHTML = ticketHTML;
     document.getElementById('ticket-modal').classList.remove('hidden');
-    
-    // Guardar detalles para usar en impresión y PDF
+
+    // Guardar detalles para usar en impresión, PDF y devoluciones
     window.currentSaleDetails = saleDetails;
+
+    const hasReturnableItems = (saleDetails.items || []).some(item => (item.remaining_quantity || 0) > 0);
+    const returnBtn = document.getElementById('open-return-modal-btn');
+    if (returnBtn) {
+        returnBtn.style.display = (!saleDetails.cancelled && hasReturnableItems) ? '' : 'none';
+    }
 }
 
 // CERRAR MODAL DE TICKET
@@ -609,9 +666,12 @@ function generateTicketHTML(saleDetails) {
     if (saleDetails.items && Array.isArray(saleDetails.items) && saleDetails.items.length > 0) {
         saleDetails.items.forEach(item => {
             console.log('  Item:', item);
+            const returnedNote = (item.returned_quantity || 0) > 0
+                ? `<br><span style="font-size: 0.75rem; color: #dc2626;">${item.returned_quantity} devuelta${item.returned_quantity !== 1 ? 's' : ''}</span>`
+                : '';
             itemsHTML += `
                 <tr>
-                    <td>${item.product_name || 'Producto desconocido'}</td>
+                    <td>${item.product_name || 'Producto desconocido'}${returnedNote}</td>
                     <td style="text-align: center;">x${item.quantity || 0}</td>
                     <td style="text-align: right;">$${(item.price || 0).toFixed(2)}</td>
                     <td style="text-align: right;">$${(item.subtotal || 0).toFixed(2)}</td>
@@ -630,8 +690,15 @@ function generateTicketHTML(saleDetails) {
         </div>
     ` : '';
 
+    const returnsBanner = (!saleDetails.cancelled && saleDetails.has_returns) ? `
+        <div style="text-align: center; margin-bottom: 1rem; padding: 0.6rem; background: rgba(217,119,6,0.12); border: 1px solid #d97706; border-radius: 4px;">
+            <p style="margin: 0; color: #d97706; font-weight: 700; letter-spacing: 0.05em;">DEVOLUCIÓN PARCIAL REGISTRADA</p>
+        </div>
+    ` : '';
+
     return `
         ${cancelledBanner}
+        ${returnsBanner}
         <div style="text-align: center; padding-bottom: 1rem; border-bottom: 2px dashed #333;">
             <h2 style="margin: 0 0 0.5rem 0; font-size: 1.8rem;">CASTZONE</h2>
             <p style="margin: 0.25rem 0;">Tienda de productos</p>
@@ -716,6 +783,7 @@ function resetSaleForm() {
     productQuantity.value = '1';
     initialPayment.value = '0';
     paymentMethod.value = 'efectivo';
+    if (saleDueDate) saleDueDate.value = '';
     if (discountType) discountType.value = 'none';
     if (discountValue) {
         discountValue.value = '';
@@ -942,10 +1010,14 @@ function renderSalesHistory(sales) {
         const rowStyle = isCancelled ? ' style="opacity: 0.55;"' : '';
 
         const isAdmin = localStorage.getItem('user_role') !== 'cajero';
+        const returnsBadge = (!isCancelled && sale.has_returns)
+            ? `<span style="display: inline-block; margin-left: 0.5rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: rgba(217,119,6,0.15); color: #d97706; font-size: 0.75rem; font-weight: 700;">DEVOLUCIÓN</span>`
+            : '';
         const actionButtons = isCancelled
             ? `<button class="btn btn-view" onclick="viewSaleTicket(${sale.id})">Ver</button>
                <span style="display: inline-block; margin-left: 0.5rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: rgba(220,38,38,0.15); color: #dc2626; font-size: 0.75rem; font-weight: 700;">ANULADA</span>`
             : `<button class="btn btn-view" onclick="viewSaleTicket(${sale.id})">Ver</button>
+               ${returnsBadge}
                ${isAdmin ? `<button class="btn-danger" onclick="openCancelSaleModal(${sale.id})" style="margin-left: 0.4rem;">Anular</button>` : ''}`;
 
         tableHTML += `
@@ -1045,6 +1117,110 @@ async function submitCancelSale() {
     } catch (error) {
         console.error('Error:', error);
         showError('Error de conexión al anular la venta');
+    } finally {
+        showLoader(false);
+    }
+}
+
+// ========== DEVOLUCIÓN PARCIAL ==========
+
+// ABRIR MODAL DE DEVOLUCIÓN (usa la venta actualmente mostrada en el ticket)
+function openReturnModal() {
+    const saleDetails = window.currentSaleDetails;
+    if (!saleDetails) {
+        showError('No hay una venta cargada para devolver productos');
+        return;
+    }
+
+    if (saleDetails.cancelled) {
+        showError('No se puede devolver productos de una venta anulada');
+        return;
+    }
+
+    const returnableItems = (saleDetails.items || []).filter(item => (item.remaining_quantity || 0) > 0);
+
+    if (returnableItems.length === 0) {
+        showError('No quedan productos disponibles para devolver en esta venta');
+        return;
+    }
+
+    const listContainer = document.getElementById('return-items-list');
+    listContainer.innerHTML = returnableItems.map(item => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--border);">
+            <div>
+                <div style="font-weight: 600;">${item.product_name}</div>
+                <div style="font-size: 0.8rem; color: var(--text-3);">Disponibles para devolver: ${item.remaining_quantity}</div>
+            </div>
+            <input type="number" class="return-qty-input" data-sale-item-id="${item.sale_item_id}" data-max="${item.remaining_quantity}"
+                   min="0" max="${item.remaining_quantity}" value="0" step="1"
+                   style="width: 80px; background: var(--navy-3); color: var(--text-1); border: 1px solid var(--border-2); border-radius: 6px; padding: 0.4rem 0.5rem; text-align: center;">
+        </div>
+    `).join('');
+
+    document.getElementById('return-sale-id').textContent = String(saleDetails.id).padStart(6, '0');
+    document.getElementById('return-reason').value = '';
+    document.getElementById('return-modal').classList.remove('hidden');
+}
+
+function closeReturnModal() {
+    document.getElementById('return-modal').classList.add('hidden');
+}
+
+// CONFIRMAR DEVOLUCIÓN
+async function submitReturn() {
+    const saleDetails = window.currentSaleDetails;
+    if (!saleDetails) return;
+
+    const inputs = document.querySelectorAll('.return-qty-input');
+    const items = [];
+    for (const input of inputs) {
+        const quantity = parseInt(input.value) || 0;
+        const max = parseInt(input.dataset.max) || 0;
+        if (quantity < 0 || quantity > max) {
+            showError('Revisá las cantidades: no pueden ser negativas ni superar lo disponible');
+            return;
+        }
+        if (quantity > 0) {
+            items.push({ sale_item_id: parseInt(input.dataset.saleItemId), quantity });
+        }
+    }
+
+    if (items.length === 0) {
+        showError('Ingresá al menos una cantidad a devolver');
+        return;
+    }
+
+    const reason = document.getElementById('return-reason').value.trim();
+
+    try {
+        showLoader(true);
+        const response = await fetchWithAuth(`${API_BASE}/sales/${saleDetails.id}/returns`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items, reason: reason || null })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            showError(data.detail || 'Error al registrar la devolución');
+            return;
+        }
+
+        closeReturnModal();
+
+        const refundMsg = data.refund_due > 0
+            ? ` Recordá reembolsar $${data.refund_due.toFixed(2)} al cliente.`
+            : '';
+        showSuccess(`✓ Devolución registrada. Se repuso el stock.${refundMsg}`);
+
+        // Refrescar ticket con los montos actualizados
+        await fetchAndShowTicket(saleDetails.id);
+        loadProducts();
+        loadSalesHistory();
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Error de conexión al registrar la devolución');
     } finally {
         showLoader(false);
     }

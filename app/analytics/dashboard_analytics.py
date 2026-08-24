@@ -61,12 +61,17 @@ def get_dashboard_stats_pandas(db, company_id):
     )
     items_data = []
     for item in sale_items:
+        # Se descuentan las unidades devueltas (devolución parcial): esas
+        # unidades ya no generaron ingreso ni costo real para el negocio.
+        effective_qty = item.quantity - (item.returned_quantity or 0)
+        if effective_qty <= 0:
+            continue
         items_data.append({
             "product_id": item.product_id,
             "product_name": item.product.name if item.product else None,
             "price": item.product.price if item.product else 0,
             "cost_price": item.product.cost_price if item.product else 0,
-            "quantity": item.quantity
+            "quantity": effective_qty
         })
     items_df = pd.DataFrame(items_data)
 
@@ -192,7 +197,10 @@ def get_top_products(db, company_id: int, limit: int = 5):
         p = item.product
         if not p:
             continue
-        qty = item.quantity or 0
+        # Unidades devueltas ya no cuentan como vendidas
+        qty = (item.quantity or 0) - (item.returned_quantity or 0)
+        if qty <= 0:
+            continue
         price = p.price or 0
         cost = p.cost_price or 0
         data.append({
@@ -253,7 +261,10 @@ def get_bottom_products(db, company_id: int, limit: int = 5):
         p = item.product
         if not p:
             continue
-        qty = item.quantity or 0
+        # Unidades devueltas ya no cuentan como vendidas
+        qty = (item.quantity or 0) - (item.returned_quantity or 0)
+        if qty <= 0:
+            continue
         price = p.price or 0
         cost = p.cost_price or 0
         data.append({
@@ -506,7 +517,7 @@ def get_total_profit_pandas_fast(db, company_id: int):
             return 0.0
         total_revenue = sum(sale.total_amount or 0 for sale in sales)
         total_cost = sum(
-            (item.product.cost_price or 0) * (item.quantity or 0)
+            (item.product.cost_price or 0) * ((item.quantity or 0) - (item.returned_quantity or 0))
             for sale in sales for item in sale.items if item.product
         )
         return float(total_revenue - total_cost)
@@ -702,9 +713,12 @@ def get_top_profitable_products(db, company_id: int, limit: int = 5):
             p = item.product
             if not p:
                 continue
+            # Unidades devueltas ya no cuentan como vendidas
+            qty = (item.quantity or 0) - (item.returned_quantity or 0)
+            if qty <= 0:
+                continue
             price = p.price or 0
             cost = p.cost_price or 0
-            qty = item.quantity or 0
             data.append({
                 "product_id": p.id,
                 "name": p.name,
@@ -789,6 +803,83 @@ def get_stale_products(db, company_id: int, days: int = 30):
         return []
 
 
+def get_reorder_alerts(db, company_id: int, lookback_days: int = 30, alert_threshold_days: int = 14):
+    """
+    Alerta de reposición basada en velocidad de venta: para cada producto,
+    calcula cuántas unidades se vendieron por día en promedio en los
+    últimos 'lookback_days' días y, a ese ritmo, en cuántos días se
+    quedaría sin stock. Solo alerta productos que efectivamente se están
+    vendiendo (velocidad > 0) y a los que les queda menos de
+    'alert_threshold_days' días de stock — un producto que no se vende no
+    necesita reposición aunque tenga poco stock (eso ya lo cubre la alerta
+    de stock bajo).
+    """
+    from app.models.sale_item import SaleItem
+    from app.models.product import Product
+    from app.models.sale import Sale
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    try:
+        cutoff = datetime.utcnow() - timedelta(days=lookback_days)
+
+        products = db.query(Product).filter(Product.company_id == company_id).all()
+
+        sold_qty = (
+            db.query(
+                SaleItem.product_id,
+                func.sum(SaleItem.quantity - SaleItem.returned_quantity).label("qty")
+            )
+            .join(Sale, Sale.id == SaleItem.sale_id)
+            .filter(
+                Sale.company_id == company_id,
+                Sale.cancelled_at.is_(None),
+                Sale.created_at >= cutoff
+            )
+            .group_by(SaleItem.product_id)
+            .all()
+        )
+        sold_map = {row.product_id: row.qty for row in sold_qty}
+
+        result = []
+        for p in products:
+            qty_sold = sold_map.get(p.id, 0) or 0
+            if qty_sold <= 0:
+                continue
+
+            daily_velocity = qty_sold / lookback_days
+            days_of_stock = (p.stock or 0) / daily_velocity
+
+            if days_of_stock > alert_threshold_days:
+                continue
+
+            if days_of_stock <= 3:
+                urgency = "urgente"
+            elif days_of_stock <= 7:
+                urgency = "pronto"
+            else:
+                urgency = "atencion"
+
+            # Cantidad sugerida para cubrir el doble de la ventana de alerta al ritmo actual
+            target_days = alert_threshold_days * 2
+            suggested_qty = max(0, round(daily_velocity * target_days - (p.stock or 0)))
+
+            result.append({
+                "id": p.id,
+                "name": p.name,
+                "stock": p.stock,
+                "daily_velocity": round(daily_velocity, 2),
+                "days_of_stock": round(days_of_stock, 1),
+                "urgency": urgency,
+                "suggested_reorder_qty": suggested_qty
+            })
+
+        result.sort(key=lambda x: x["days_of_stock"])
+        return result
+    except Exception as e:
+        print(f"Error get_reorder_alerts: {e}")
+        return []
+
+
 def get_inactive_customers(db, company_id: int, days: int = 30):
     """
     Retorna clientes que no han comprado en los últimos 'days' días.
@@ -870,7 +961,7 @@ def get_sales_chart_with_growth(db, company_id: int, start_date, end_date, group
                 for item in sale.items:
                     p = item.product
                     if p:
-                        cost += (p.cost_price or 0) * (item.quantity or 0)
+                        cost += (p.cost_price or 0) * ((item.quantity or 0) - (item.returned_quantity or 0))
             return total, total - cost
 
         curr_sales_total, curr_profit = calc_totals(current_sales)
@@ -900,7 +991,7 @@ def get_sales_chart_with_growth(db, company_id: int, start_date, end_date, group
         rows = []
         for sale in current_sales:
             cost_sale = sum(
-                (item.product.cost_price or 0) * (item.quantity or 0)
+                (item.product.cost_price or 0) * ((item.quantity or 0) - (item.returned_quantity or 0))
                 for item in sale.items if item.product
             )
             rows.append({
@@ -1008,7 +1099,10 @@ def get_business_insights(db, company_id: int):
                 p = item.product
                 if not p:
                     continue
-                qty = item.quantity or 0
+                # Unidades devueltas ya no cuentan como vendidas
+                qty = (item.quantity or 0) - (item.returned_quantity or 0)
+                if qty <= 0:
+                    continue
                 price = p.price or 0
                 cost = p.cost_price or 0
                 profit = (price - cost) * qty

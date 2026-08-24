@@ -60,7 +60,7 @@ async function loadUserRole(token) {
  * menú y, si el cajero entra por URL directa, se lo redirige a Ventas.
  * El backend igual rechaza esas acciones aunque alguien fuerce la UI.
  */
-const CAJERO_ALLOWED_PAGES = ['sales'];
+const CAJERO_ALLOWED_PAGES = ['sales', 'products', 'customers'];
 
 function applyRoleBasedUI() {
     const role = localStorage.getItem('user_role') || 'admin';

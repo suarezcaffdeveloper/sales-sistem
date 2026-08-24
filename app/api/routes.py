@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.schemas.product import ProductResponse, ProductCreate
 from app.crud.product import create_product, get_products, update_product, delete_product, get_products_filtered
-from app.schemas.sale import SaleCreate, SaleResponse, SaleCancelRequest
-from app.crud.sale import create_sale, get_sale_details, get_all_sales, get_pending_debts, cancel_sale
+from app.schemas.sale import SaleCreate, SaleResponse, SaleCancelRequest, SaleDueDateUpdate, SaleReturnRequest
+from app.crud.sale import create_sale, get_sale_details, get_all_sales, get_pending_debts, cancel_sale, update_sale_due_date
 from app.schemas.purchase import PurchaseCreate, PurchaseResponse
 from app.crud.purchase import create_purchase, get_purchase_details, get_all_purchases, get_purchases_by_supplier, get_pending_supplier_debts
 from app.schemas.supplier_payment import SupplierPaymentCreate, SupplierPaymentResponse
@@ -247,6 +247,25 @@ def create_new_sale(sale: SaleCreate, user_info: dict = Depends(get_current_user
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# ================================
+# RUTAS PARA DESCUENTOS POR MÉTODO DE PAGO
+# ================================
+from app.schemas.payment_method_discount import PaymentMethodDiscountUpdate
+from app.crud.payment_method_discount import get_payment_method_discounts, set_payment_method_discount
+
+@protected_router.get("/payment-method-discounts")
+def list_payment_method_discounts(user_info: dict = Depends(get_current_user_with_company), db: Session = Depends(get_db)):
+    """Lista el descuento configurado para cada método de pago (cualquier usuario logueado puede verlo, para previsualizarlo al vender)"""
+    return get_payment_method_discounts(db, user_info["company_id"])
+
+@protected_router.put("/payment-method-discounts/{payment_method}")
+def update_payment_method_discount(payment_method: str, body: PaymentMethodDiscountUpdate, user_info: dict = Depends(require_admin), db: Session = Depends(get_db)):
+    """Activa/desactiva y define el % de descuento automático para un método de pago (solo admin)"""
+    try:
+        return set_payment_method_discount(db, user_info["company_id"], payment_method, body.discount_percent, body.active)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 # NOTA: Esta ruta DEBE ir antes de /sales/{sale_id} para que FastAPI no intente interpretar
 # "pending-debts" como un ID numérico
 @protected_router.get("/sales/pending-debts")
@@ -280,6 +299,32 @@ def cancel_sale_endpoint(sale_id: int, body: SaleCancelRequest = SaleCancelReque
         return cancel_sale(db, sale_id, user_info["company_id"], body.reason)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@protected_router.put("/sales/{sale_id}/due-date")
+def update_sale_due_date_endpoint(sale_id: int, body: SaleDueDateUpdate, user_info: dict = Depends(require_admin), db: Session = Depends(get_db)):
+    """Define o cambia la fecha de vencimiento de la deuda de una venta (solo admin)"""
+    try:
+        return update_sale_due_date(db, sale_id, user_info["company_id"], body.due_date)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@protected_router.post("/sales/{sale_id}/returns")
+def create_sale_return_endpoint(sale_id: int, body: SaleReturnRequest, user_info: dict = Depends(require_admin), db: Session = Depends(get_db)):
+    """Registra una devolución parcial de productos de una venta (solo admin)"""
+    from app.crud.sale_return import create_partial_return
+    try:
+        return create_partial_return(db, sale_id, user_info["company_id"], body.items, body.reason)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@protected_router.get("/sales/{sale_id}/returns")
+def list_sale_returns_endpoint(sale_id: int, user_info: dict = Depends(get_current_user_with_company), db: Session = Depends(get_db)):
+    """Lista el historial de devoluciones parciales de una venta"""
+    from app.crud.sale_return import get_sale_returns
+    try:
+        return get_sale_returns(db, sale_id, user_info["company_id"])
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 @protected_router.get("/sales")
 def list_sales(user_info: dict = Depends(get_current_user_with_company), db: Session = Depends(get_db)) -> list:
@@ -588,6 +633,20 @@ def get_sales_chart_v2(
     except Exception as e:
         print(f"Error sales-chart-v2: {e}")
         return {"data": [], "summary": {}}
+
+@protected_router.get("/statistics/reorder-alerts")
+def get_reorder_alerts_endpoint(
+    lookback_days: int = 30,
+    alert_threshold_days: int = 14,
+    user_info: dict = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Alertas de reposición: productos que, al ritmo de venta actual, se quedarían sin stock pronto"""
+    from app.analytics.dashboard_analytics import get_reorder_alerts
+    try:
+        return get_reorder_alerts(db, user_info["company_id"], lookback_days, alert_threshold_days)
+    except Exception as e:
+        return []
 
 @protected_router.get("/statistics/insights")
 def get_insights(

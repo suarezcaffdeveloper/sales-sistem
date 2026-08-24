@@ -236,6 +236,70 @@ def migrate_add_sale_discount_fields():
             print(f"   [WARNING] Error backfilling sales discount fields: {str(e)}")
 
 
+def migrate_add_sale_due_date():
+    """
+    Agrega due_date a sales, para poder definir un vencimiento de la deuda
+    de una venta (fiado) y alertar facturas vencidas o próximas a vencer.
+    Las ventas existentes quedan sin vencimiento definido (NULL): no hay
+    forma de reconstruir una fecha que nunca se cargó.
+    """
+    from app.db.database import engine
+
+    inspector = inspect(engine)
+
+    if 'sales' not in inspector.get_table_names():
+        return
+
+    columns = [col['name'] for col in inspector.get_columns('sales')]
+
+    if 'due_date' in columns:
+        return
+
+    with engine.begin() as conn:
+        print("[MIGRATION] Migrating table 'sales': adding column 'due_date'...")
+        try:
+            conn.execute(text("ALTER TABLE sales ADD COLUMN due_date DATE"))
+            print("   [OK] Column 'due_date' added to 'sales'")
+        except Exception as e:
+            if "duplicate column name" not in str(e).lower():
+                print(f"   [WARNING] Error adding 'due_date' to 'sales': {str(e)}")
+
+
+def migrate_add_sale_return_fields():
+    """
+    Agrega returned_quantity a sale_items, para poder trackear devoluciones
+    parciales (a diferencia de la anulación total, que ya existe). Los
+    items existentes quedan en 0 (nada devuelto todavía).
+    """
+    from app.db.database import engine
+
+    inspector = inspect(engine)
+
+    if 'sale_items' not in inspector.get_table_names():
+        return
+
+    columns = [col['name'] for col in inspector.get_columns('sale_items')]
+
+    if 'returned_quantity' in columns:
+        return
+
+    with engine.begin() as conn:
+        print("[MIGRATION] Migrating table 'sale_items': adding column 'returned_quantity'...")
+        try:
+            conn.execute(text("ALTER TABLE sale_items ADD COLUMN returned_quantity INTEGER DEFAULT 0"))
+            print("   [OK] Column 'returned_quantity' added to 'sale_items'")
+        except Exception as e:
+            if "duplicate column name" not in str(e).lower():
+                print(f"   [WARNING] Error adding 'returned_quantity' to 'sale_items': {str(e)}")
+
+        try:
+            result = conn.execute(text(
+                "UPDATE sale_items SET returned_quantity = 0 WHERE returned_quantity IS NULL"
+            ))
+        except Exception as e:
+            print(f"   [WARNING] Error backfilling sale_items.returned_quantity: {str(e)}")
+
+
 def run_all_migrations():
     """
     Runs all necessary migrations
@@ -249,6 +313,8 @@ def run_all_migrations():
         migrate_add_purchase_debt_fields()
         migrate_add_user_role()
         migrate_add_sale_discount_fields()
+        migrate_add_sale_due_date()
+        migrate_add_sale_return_fields()
         print("\n[OK] All migrations completed successfully!\n")
     except Exception as e:
         print(f"[ERROR] Migration failed: {str(e)}")

@@ -18,7 +18,7 @@ from app.api.routes import protected_router, public_router
 from app.db.database import engine, Base, migrate_add_daily_box_id_if_missing
 from app.db.migrations import run_all_migrations
 from pathlib import Path
-from app.models import Product, Customer, Supplier, Sale, SaleItem, User, DailyBox, Purchase, PurchaseItem, Payment, SupplierPayment
+from app.models import Product, Customer, Supplier, Sale, SaleItem, User, DailyBox, Purchase, PurchaseItem, Payment, SupplierPayment, PaymentMethodDiscount, SaleReturn, SaleReturnItem
 from seed_demo import seed_demo
 
 # Cargar variables de entorno desde .env si existe

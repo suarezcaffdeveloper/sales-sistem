@@ -68,7 +68,8 @@ def _summarize_sales(sales: list) -> dict:
             product = item.product
             if not product:
                 continue
-            qty = item.quantity or 0
+            # Unidades devueltas ya no cuentan como vendidas
+            qty = (item.quantity or 0) - (item.returned_quantity or 0)
             total_cost += (product.cost_price or 0) * qty
 
     total_profit = total_revenue - total_cost
@@ -96,7 +97,9 @@ def _top_products_for_period(sales: list, limit: int = 10) -> list:
             product = item.product
             if not product:
                 continue
-            qty = item.quantity or 0
+            qty = (item.quantity or 0) - (item.returned_quantity or 0)
+            if qty <= 0:
+                continue
             price = product.price or 0
             cost = product.cost_price or 0
             entry = products.setdefault(product.id, {
@@ -520,7 +523,7 @@ def generate_daily_box_excel(db: Session, box_date_str: str, company_id: int):
         for item in sale.items:
             p = item.product
             if p:
-                total_cost_of_sales += (p.cost_price or 0) * (item.quantity or 0)
+                total_cost_of_sales += (p.cost_price or 0) * ((item.quantity or 0) - (item.returned_quantity or 0))
     total_profit = total_sales_amt - total_cost_of_sales
 
     ws_summary[f"A{row_offset}"] = "MÉTRICAS DEL DÍA"
@@ -607,7 +610,9 @@ def generate_daily_box_excel(db: Session, box_date_str: str, company_id: int):
             p = item.product
             if not p:
                 continue
-            qty = item.quantity or 0
+            qty = (item.quantity or 0) - (item.returned_quantity or 0)
+            if qty <= 0:
+                continue
             price = p.price or 0
             cost = p.cost_price or 0
             if p.name not in prod_totals:
@@ -677,7 +682,9 @@ def generate_daily_box_pdf(db: Session, box_date_str: str, company_id: int):
             p = item.product
             if not p:
                 continue
-            qty = item.quantity or 0
+            qty = (item.quantity or 0) - (item.returned_quantity or 0)
+            if qty <= 0:
+                continue
             price = p.price or 0
             cost = p.cost_price or 0
             total_cost_of_sales += cost * qty

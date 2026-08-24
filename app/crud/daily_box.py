@@ -112,7 +112,7 @@ def get_daily_box_by_date(db: Session, box_date: str, company_id: int):
     for sale in sales_data:
         for item in sale.items:
             product = item.product
-            total_cost += (product.cost_price or 0) * item.quantity
+            total_cost += (product.cost_price or 0) * ((item.quantity or 0) - (item.returned_quantity or 0))
     total_profit = total_sales - total_cost
 
     return {
@@ -158,7 +158,7 @@ def get_daily_box_details_by_id(db: Session, box_id: int, company_id: int):
     for sale in sales_data:
         for item in sale.items:
             product = item.product
-            total_cost += (product.cost_price or 0) * item.quantity
+            total_cost += (product.cost_price or 0) * ((item.quantity or 0) - (item.returned_quantity or 0))
     total_profit = total_sales - total_cost
 
     return {
