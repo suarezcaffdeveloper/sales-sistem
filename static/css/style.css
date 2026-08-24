@@ -989,6 +989,17 @@ tbody td:first-child {
     border-radius: var(--radius-lg);
 }
 
+.table-wrapper-scroll-5 {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.table-wrapper-scroll-5 table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
 /* ─── SECTION SPACING ────────────────────────────────────── */
 
 .mt-section { margin-top: 1.5rem; }
