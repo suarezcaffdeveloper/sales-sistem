@@ -25,14 +25,14 @@ function displayUsername() {
     const username = getUsername();
     const usernameDisplay = document.getElementById('username-display');
     if (usernameDisplay && username) {
-        usernameDisplay.textContent = `👤 ${username}`;
+        usernameDisplay.textContent = username;
     }
 }
 
 function setupEventListeners() {
     saveProductBtn.addEventListener('click', saveProduct);
     cancelProductBtn.addEventListener('click', cancelEdit);
-    
+
     // Filtro de búsqueda
     const filterInput = document.getElementById('filter-products');
     if (filterInput) {
@@ -41,6 +41,29 @@ function setupEventListeners() {
             filterProducts(searchTerm);
         });
     }
+
+    document.getElementById('confirm-cancel-btn')?.addEventListener('click', closeConfirmModal);
+    document.getElementById('confirm-accept-btn')?.addEventListener('click', () => {
+        const callback = confirmActionCallback;
+        closeConfirmModal();
+        if (callback) callback();
+    });
+}
+
+// ========== MODAL DE CONFIRMACIÓN (reemplaza confirm() nativo) ==========
+
+let confirmActionCallback = null;
+
+function showConfirm(message, onConfirm, acceptLabel = 'Confirmar') {
+    document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-accept-btn').textContent = acceptLabel;
+    confirmActionCallback = onConfirm;
+    document.getElementById('confirm-modal').classList.remove('hidden');
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    confirmActionCallback = null;
 }
 
 // CARGAR PROVEEDORES
@@ -75,7 +98,7 @@ async function loadProducts() {
         renderProducts();
     } catch (error) {
         console.error('Error cargando productos:', error);
-        productsTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: red;">Error al cargar los productos</td></tr>';
+        productsTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--danger);">Error al cargar los productos</td></tr>';
         showError('Error al cargar los productos: ' + error.message);
     }
 }
@@ -102,9 +125,9 @@ function renderProducts() {
             <td>${margin}%</td>
             <td>${product.stock}</td>
             <td>${supplier ? supplier.name : '-'}</td>
-            <td>
-                <button class="btn-danger" onclick="editProduct(${product.id})">✏️ Editar</button>
-                <button class="btn-danger" onclick="deleteProduct(${product.id})">🗑️ Eliminar</button>
+            <td style="white-space: nowrap;">
+                <button class="btn btn-view" onclick="editProduct(${product.id})" style="margin-right: 0.4rem;">Editar</button>
+                <button class="btn-danger" onclick="deleteProduct(${product.id})">Eliminar</button>
             </td>
         `;
         productsTbody.appendChild(tr);
@@ -202,7 +225,7 @@ function editProduct(id) {
     productSupplierSelect.value = product.supplier_id || '';
     editingId = id;
 
-    saveProductBtn.textContent = '✏️ Actualizar Producto';
+    saveProductBtn.textContent = 'Actualizar producto';
     cancelProductBtn.style.display = 'block';
     productNameInput.focus();
 }
@@ -213,25 +236,25 @@ function cancelEdit() {
 }
 
 // ELIMINAR PRODUCTO
-async function deleteProduct(id) {
-    if (!confirm('¿Estás seguro de que deseas eliminar este producto?')) return;
+function deleteProduct(id) {
+    showConfirm('¿Estás seguro de que deseas eliminar este producto? Esta acción no se puede deshacer.', async () => {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/products/${id}`, {
+                method: 'DELETE'
+            });
 
-    try {
-        const response = await fetchWithAuth(`${API_BASE}/products/${id}`, {
-            method: 'DELETE'
-        });
+            if (!response.ok) {
+                const errorData = await response.json();
+                showError(errorData.detail || 'Error al eliminar el producto');
+                return;
+            }
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            showError(errorData.detail || 'Error al eliminar el producto');
-            return;
+            loadProducts();
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Error de conexión: ' + error.message);
         }
-
-        loadProducts();
-    } catch (error) {
-        console.error('Error:', error);
-        showError('Error de conexión: ' + error.message);
-    }
+    }, 'Eliminar');
 }
 
 // LIMPIAR FORMULARIO
@@ -241,7 +264,7 @@ function clearForm() {
     productStockInput.value = '';
     productSupplierSelect.value = '';
     editingId = null;
-    saveProductBtn.textContent = '💾 Guardar Producto';
+    saveProductBtn.textContent = 'Guardar producto';
     cancelProductBtn.style.display = 'none';
 }
 
@@ -277,7 +300,7 @@ function filterProducts(searchTerm) {
     if (!visibleRows && searchTerm !== '') {
         const tr = document.createElement('tr');
         tr.className = 'no-results-row';
-        tr.innerHTML = '<td colspan="8" style="text-align: center; padding: 2rem; color: #999;">No se encontraron productos con "' + searchTerm.toUpperCase() + '"</td>';
+        tr.innerHTML = '<td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-3);">No se encontraron productos con "' + searchTerm.toUpperCase() + '"</td>';
         productsTbody.appendChild(tr);
     }
 }

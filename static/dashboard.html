@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CastZone — Dashboard</title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/theme-crisp.css">
     <script src="/js/checkAuth.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -27,7 +28,7 @@
             <li><a href="/productos.html" class="nav-link" data-page="products"><span>Productos</span></a></li>
             <li><a href="/clientes.html" class="nav-link" data-page="customers"><span>Clientes</span></a></li>
             <li><a href="/proveedores.html" class="nav-link" data-page="suppliers"><span>Proveedores</span></a></li>
-            <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 1rem;">
+            <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid var(--border); padding-left: 1rem;">
                 <span id="username-display" style="color: var(--text-2); font-size: 0.875rem;"></span>
                 <button onclick="logout()" class="btn btn-secondary" style="padding: 0.45rem 0.875rem; font-size: 0.875rem;">Salir</button>
             </li>
@@ -49,7 +50,7 @@
         <div class="stat-card primary" onclick="openSalesChart()" style="cursor:pointer;" title="Ver gráfico de ventas">
             <h3>Ventas totales</h3>
             <div class="value" id="total-sales">$0.00</div>
-            <div class="subtitle">Acumulado general · <span style="font-size:0.75rem;opacity:0.7;">📊 Click para gráfico</span></div>
+            <div class="subtitle">Acumulado general · <span style="font-size:0.75rem;opacity:0.7;">Click para ver el gráfico</span></div>
         </div>
         <div class="stat-card success">
             <h3>Cantidad de ventas</h3>
@@ -84,7 +85,7 @@
         <div class="stat-card danger" onclick="openDebtChart()" style="cursor:pointer;" title="Ver gráfico de deudas">
             <h3>Total adeudado</h3>
             <div class="value" id="total-debt">$0.00</div>
-            <div class="subtitle"><span id="debt-count">0</span> factura(s) · <span style="font-size:0.75rem;opacity:0.7;">📈 Click para gráfico</span></div>
+            <div class="subtitle"><span id="debt-count">0</span> factura(s) · <span style="font-size:0.75rem;opacity:0.7;">Click para ver el gráfico</span></div>
         </div>
 
         <div id="payment-methods-container"></div>
@@ -191,7 +192,7 @@
 
     <!-- Productos más rentables -->
     <div class="form-section mt-section">
-        <h3>🏆 Productos más rentables</h3>
+        <h3>Productos más rentables</h3>
         <div class="table-wrapper" style="margin-top:1rem;">
             <table>
                 <thead>
@@ -207,7 +208,7 @@
     <!-- Productos sin ventas recientes -->
     <div class="form-section mt-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-            <h3>📦 Productos sin ventas recientes</h3>
+            <h3>Productos sin ventas recientes</h3>
             <div style="display:flex;align-items:center;gap:0.5rem;">
                 <label style="font-size:0.875rem;color:var(--text-2);">Sin vender hace más de</label>
                 <select id="stale-days-select" onchange="loadStaleProducts()" style="background:var(--navy-3);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:0.3rem 0.5rem;font-size:0.875rem;">
@@ -234,7 +235,7 @@
     <!-- Clientes inactivos -->
     <div class="form-section mt-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-            <h3>👤 Clientes inactivos</h3>
+            <h3>Clientes inactivos</h3>
             <div style="display:flex;align-items:center;gap:0.5rem;">
                 <label style="font-size:0.875rem;color:var(--text-2);">Sin compras hace más de</label>
                 <select id="inactive-days-select" onchange="loadInactiveCustomers()" style="background:var(--navy-3);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:0.3rem 0.5rem;font-size:0.875rem;">
@@ -261,7 +262,7 @@
     <!-- Insights de negocio -->
     <div class="form-section mt-section">
         <h3 style="display:flex;align-items:center;gap:0.5rem;">
-            <span>🔍</span> Insights del Negocio
+            Insights del Negocio
         </h3>
         <p style="color:var(--text-3);font-size:0.82rem;margin:-0.5rem 0 1rem 0;">Análisis automático basado en tus datos de ventas</p>
         <div id="business-insights-container">
@@ -283,41 +284,41 @@
 <div id="payment-debt-modal" class="modal hidden">
     <div class="modal-content" style="max-width: 500px;">
         <div style="text-align: center; margin-bottom: 2rem;">
-            <h3 style="margin-bottom: 0.5rem;">💳 Registrar Pago de Deuda</h3>
-            <p style="color: #666; font-size: 0.875rem;">Factura #<span id="payment-sale-id"></span></p>
+            <h3 style="margin-bottom: 0.5rem;">Registrar Pago de Deuda</h3>
+            <p style="color: var(--text-3); font-size: 0.875rem;">Factura #<span id="payment-sale-id"></span></p>
         </div>
 
-        <div style="background: #f5f5f5; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+        <div style="background: var(--navy-3); border: 1px solid var(--border); padding: 1.5rem; border-radius: var(--radius); margin-bottom: 1.5rem;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                 <div>
-                    <label style="color: #666; font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Cliente</label>
-                    <p style="margin: 0; font-weight: 600;" id="payment-customer-name"></p>
+                    <label style="color: var(--text-2); font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Cliente</label>
+                    <p style="margin: 0; font-weight: 600; color: var(--text-1);" id="payment-customer-name"></p>
                 </div>
             </div>
 
-            <div style="border-top: 1px solid #ddd; padding-top: 1rem; margin-top: 1rem;">
+            <div style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div>
-                        <label style="color: #666; font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Total Factura</label>
-                        <p style="margin: 0; font-weight: 600; color: #1976d2;" id="payment-total-amount">$0.00</p>
+                        <label style="color: var(--text-2); font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Total Factura</label>
+                        <p style="margin: 0; font-weight: 600; color: var(--text-1);" id="payment-total-amount">$0.00</p>
                     </div>
                     <div>
-                        <label style="color: #666; font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Ya Pagado</label>
-                        <p style="margin: 0; font-weight: 600; color: #4caf50;" id="payment-paid-amount">$0.00</p>
+                        <label style="color: var(--text-2); font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Ya Pagado</label>
+                        <p style="margin: 0; font-weight: 600; color: var(--success);" id="payment-paid-amount">$0.00</p>
                     </div>
                 </div>
 
-                <div style="margin-top: 1rem; padding: 1rem; background: #fee2e2; border-radius: 4px;">
-                    <label style="color: #991b1b; font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Deuda Pendiente</label>
-                    <p style="margin: 0; font-weight: 700; color: #dc3545; font-size: 1.25rem;" id="payment-debt-amount">$0.00</p>
+                <div style="margin-top: 1rem; padding: 1rem; background: var(--danger-dim); border-radius: var(--radius-sm);">
+                    <label style="color: var(--danger); font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Deuda Pendiente</label>
+                    <p style="margin: 0; font-weight: 700; color: var(--danger); font-size: 1.25rem;" id="payment-debt-amount">$0.00</p>
                 </div>
             </div>
         </div>
 
         <div style="margin-bottom: 1.5rem;">
-            <label for="payment-new-amount" style="color: #333; font-weight: 600; display: block; margin-bottom: 0.5rem;">Ingresa el monto a pagar</label>
-            <input type="number" id="payment-new-amount" min="0" step="0.01" placeholder="0.00" 
-                   style="width: 100%; padding: 0.75rem; border: 2px solid #1976d2; border-radius: 4px; font-size: 1rem; font-weight: 600;">
+            <label for="payment-new-amount" style="color: var(--text-1); font-weight: 600; display: block; margin-bottom: 0.5rem;">Ingresa el monto a pagar</label>
+            <input type="number" id="payment-new-amount" min="0" step="0.01" placeholder="0.00"
+                   style="width: 100%; padding: 0.75rem; border: 2px solid var(--accent); border-radius: var(--radius-sm); font-size: 1rem; font-weight: 600; background: var(--navy-3); color: var(--text-1);">
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -335,7 +336,7 @@
 <div id="debt-chart-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
     <div style="background:var(--navy-2);border:1px solid var(--border-2);border-radius:var(--radius-lg);padding:2rem;width:min(90vw,800px);max-height:90vh;overflow-y:auto;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
-            <h3 style="margin:0;">📈 Evolución de Deudas</h3>
+            <h3 style="margin:0;">Evolución de Deudas</h3>
             <button onclick="closeDebtChart()" style="background:none;border:none;color:var(--text-2);font-size:1.5rem;cursor:pointer;line-height:1;">&times;</button>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;align-items:flex-end;">
@@ -368,7 +369,7 @@
 <div id="sales-chart-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
     <div style="background:var(--navy-2);border:1px solid var(--border-2);border-radius:var(--radius-lg);padding:2rem;width:min(90vw,800px);max-height:90vh;overflow-y:auto;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
-            <h3 style="margin:0;">📊 Gráfico de Ventas</h3>
+            <h3 style="margin:0;">Gráfico de Ventas</h3>
             <button onclick="closeSalesChart()" style="background:none;border:none;color:var(--text-2);font-size:1.5rem;cursor:pointer;line-height:1;">&times;</button>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;align-items:flex-end;">

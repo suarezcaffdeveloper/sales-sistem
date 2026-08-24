@@ -40,7 +40,7 @@ function displayUsername() {
     const username = getUsername();
     const usernameDisplay = document.getElementById('username-display');
     if (usernameDisplay && username) {
-        usernameDisplay.textContent = `👤 ${username}`;
+        usernameDisplay.textContent = username;
     }
 }
 
@@ -62,10 +62,26 @@ function setupEventListeners() {
         if (e.key === 'Enter') addProductToPurchase();
     });
 
+    // Stepper +/- de cantidad
+    document.getElementById('qty-purchase-decrease')?.addEventListener('click', () => {
+        const current = parseInt(productQuantityPurchase.value) || 1;
+        productQuantityPurchase.value = Math.max(1, current - 1);
+    });
+    document.getElementById('qty-purchase-increase')?.addEventListener('click', () => {
+        const current = parseInt(productQuantityPurchase.value) || 1;
+        productQuantityPurchase.value = current + 1;
+    });
+
     // Cerrar modales
     document.getElementById('close-modal-btn')?.addEventListener('click', closeModal);
     document.getElementById('close-error-btn')?.addEventListener('click', closeErrorModal);
-    
+    document.getElementById('confirm-cancel-btn')?.addEventListener('click', closeConfirmModal);
+    document.getElementById('confirm-accept-btn')?.addEventListener('click', () => {
+        const callback = confirmActionCallback;
+        closeConfirmModal();
+        if (callback) callback();
+    });
+
     // Filtros de búsqueda
     const supplierFilterInput = document.getElementById('purchases-filter-supplier');
     if (supplierFilterInput) {
@@ -105,8 +121,8 @@ async function loadPurchasesHistory() {
         renderPurchasesHistory(allPurchasesHistory);
     } catch (error) {
         console.error('Error cargando historial de compras:', error);
-        document.getElementById('purchases-history-table').innerHTML = 
-            '<p class="empty-message" style="color: #d32f2f;">Error al cargar el historial de compras</p>';
+        document.getElementById('purchases-history-table').innerHTML =
+            '<p class="empty-message" style="color: var(--danger);">Error al cargar el historial de compras</p>';
     }
 }
 
@@ -126,15 +142,15 @@ function handleSupplierSearch(e) {
     );
 
     if (filtered.length === 0) {
-        supplierSearchResults.innerHTML = '<div class="search-result-item" style="pointer-events: none; cursor: default; color: #999;">No se encontraron proveedores</div>';
+        supplierSearchResults.innerHTML = '<div class="search-result-item" style="pointer-events: none; cursor: default; color: var(--text-3);">No se encontraron proveedores</div>';
         return;
     }
 
     filtered.slice(0, 5).forEach(supplier => {
         const div = document.createElement('div');
         div.className = 'search-result-item';
-        
-        div.innerHTML = `${supplier.name} <span style="font-size: 0.85rem; color: #999;">${supplier.email || 'Sin email'}</span>`;
+
+        div.innerHTML = `${supplier.name} <span style="font-size: 0.85rem; color: var(--text-3);">${supplier.email || 'Sin email'}</span>`;
         div.onclick = () => selectSupplier(supplier);
         supplierSearchResults.appendChild(div);
     });
@@ -167,7 +183,7 @@ function handleProductSearchPurchase(e) {
     ).slice(0, 5);
 
     if (filtered.length === 0) {
-        searchResultsPurchase.innerHTML = '<div class="search-result-item" style="pointer-events: none; color: #999;">No se encontraron productos</div>';
+        searchResultsPurchase.innerHTML = '<div class="search-result-item" style="pointer-events: none; color: var(--text-3);">No se encontraron productos</div>';
         createNewProductBtn.style.display = 'block';
         createNewProductBtn.textContent = `+ Crear "${searchTerm}"`;
         createNewProductBtn.dataset.productName = searchTerm;
@@ -182,7 +198,7 @@ function handleProductSearchPurchase(e) {
         div.innerHTML = `
             <div>
                 <strong>${product.name}</strong><br>
-                <span style="font-size: 0.85rem; color: #999;">Stock: ${product.stock} | $${product.price.toFixed(2)}</span>
+                <span style="font-size: 0.85rem; color: var(--text-3);">Stock: ${product.stock} | $${product.price.toFixed(2)}</span>
             </div>
         `;
         div.onclick = () => selectProductForPurchase(product);
@@ -273,10 +289,13 @@ function renderPurchaseCart() {
             <div class="cart-item-info">
                 <div class="cart-item-name">${item.product_name}</div>
                 <div class="cart-item-details">
-                    $${item.unit_cost.toFixed(2)} c/u × ${item.quantity} = $${item.subtotal.toFixed(2)}
+                    ×${item.quantity} · $${item.unit_cost.toFixed(2)} c/u
                 </div>
             </div>
-            <button class="btn-danger" onclick="removeFromPurchaseCart(${index})">🗑️</button>
+            <div class="cart-item-total">$${item.subtotal.toFixed(2)}</div>
+            <button class="cart-item-remove" onclick="removeFromPurchaseCart(${index})" aria-label="Quitar producto">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
         `;
         cartItemsPurchaseContainer.appendChild(div);
     });
@@ -312,11 +331,11 @@ function clearPurchaseCart() {
         return;
     }
 
-    if (confirm('¿Estás seguro de que deseas limpiar la compra?')) {
+    showConfirm('¿Estás seguro de que deseas limpiar la compra?', () => {
         purchaseItems = [];
         renderPurchaseCart();
         updateCompletePurchaseButton();
-    }
+    }, 'Limpiar');
 }
 
 // ACTUALIZAR BOTÓN COMPLETAR
@@ -364,7 +383,7 @@ async function completePurchase() {
         }
 
         // Éxito
-        showSuccess(`✓ Compra completada! ID: ${data.id} | Total: $${data.total_amount.toFixed(2)}`);
+        showSuccess(`Compra completada. ID: ${data.id} | Total: $${data.total_amount.toFixed(2)}`);
         resetPurchaseForm();
         loadProducts(); // Recargar productos para actualizar stock
         loadPurchasesHistory(); // Recargar historial
@@ -428,18 +447,13 @@ function renderPurchasesHistory(purchases) {
         
         tableHTML += `
             <tr>
-                <td style="color: #666;">#${String(purchase.id).padStart(6, '0')}</td>
-                <td style="color: #333; font-weight: 500;">${purchase.supplier_name}</td>
-                <td style="color: #666; font-size: 0.9rem;">${formattedDate} ${formattedTime}</td>
-                <td style="color: #666; font-size: 0.9rem; text-align: center;">${purchase.items_count} producto${purchase.items_count !== 1 ? 's' : ''}</td>
-                <td style="text-align: right; font-weight: 600; color: #4caf50;">$${purchase.total_amount.toFixed(2)}</td>
+                <td>#${String(purchase.id).padStart(6, '0')}</td>
+                <td style="color: var(--text-1); font-weight: 500;">${purchase.supplier_name}</td>
+                <td style="font-size: 0.9rem;">${formattedDate} ${formattedTime}</td>
+                <td style="font-size: 0.9rem; text-align: center;">${purchase.items_count} producto${purchase.items_count !== 1 ? 's' : ''}</td>
+                <td style="text-align: right; font-weight: 600; color: var(--text-1); font-family: var(--mono);">$${purchase.total_amount.toFixed(2)}</td>
                 <td style="text-align: center;">
-                    <button onclick="viewPurchaseDetail(${purchase.id})" 
-                            style="background: #1976d2; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: background 0.3s;"
-                            onmouseover="this.style.background='#1565c0'" 
-                            onmouseout="this.style.background='#1976d2'">
-                        👁️ Ver
-                    </button>
+                    <button class="btn btn-view" onclick="viewPurchaseDetail(${purchase.id})">Ver</button>
                 </td>
             </tr>
         `;
@@ -495,30 +509,30 @@ function showPurchaseDetailModal(purchaseDetail) {
     });
     
     content.innerHTML = `
-        <div style="background: #f5f5f5; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
-            <p style="margin: 0.5rem 0;"><strong>Proveedor:</strong> ${purchaseDetail.supplier_name}</p>
-            ${purchaseDetail.supplier_email ? `<p style="margin: 0.5rem 0;"><strong>Email:</strong> ${purchaseDetail.supplier_email}</p>` : ''}
-            ${purchaseDetail.supplier_phone ? `<p style="margin: 0.5rem 0;"><strong>Teléfono:</strong> ${purchaseDetail.supplier_phone}</p>` : ''}
-            <p style="margin: 0.5rem 0;"><strong>Fecha:</strong> ${formattedDate} ${formattedTime}</p>
-            <p style="margin: 0.5rem 0;"><strong>ID Compra:</strong> ${purchaseDetail.id}</p>
+        <div style="background: var(--navy-3); border: 1px solid var(--border); padding: 1rem 1.25rem; border-radius: var(--radius); margin-bottom: 1rem;">
+            <p style="margin: 0.5rem 0; color: var(--text-1);"><strong>Proveedor:</strong> ${purchaseDetail.supplier_name}</p>
+            ${purchaseDetail.supplier_email ? `<p style="margin: 0.5rem 0; color: var(--text-1);"><strong>Email:</strong> ${purchaseDetail.supplier_email}</p>` : ''}
+            ${purchaseDetail.supplier_phone ? `<p style="margin: 0.5rem 0; color: var(--text-1);"><strong>Teléfono:</strong> ${purchaseDetail.supplier_phone}</p>` : ''}
+            <p style="margin: 0.5rem 0; color: var(--text-1);"><strong>Fecha:</strong> ${formattedDate} ${formattedTime}</p>
+            <p style="margin: 0.5rem 0; color: var(--text-1);"><strong>ID Compra:</strong> ${purchaseDetail.id}</p>
         </div>
-        
+
         <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
             <thead>
-                <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
-                    <th style="text-align: left; padding: 0.75rem; font-weight: 600;">Producto</th>
-                    <th style="text-align: center; padding: 0.75rem; font-weight: 600;">Cantidad</th>
-                    <th style="text-align: right; padding: 0.75rem; font-weight: 600;">Costo Unit.</th>
-                    <th style="text-align: right; padding: 0.75rem; font-weight: 600;">Subtotal</th>
+                <tr style="background: var(--navy-3); border-bottom: 1px solid var(--border-2);">
+                    <th style="text-align: left; padding: 0.75rem; font-weight: 600; color: var(--text-2);">Producto</th>
+                    <th style="text-align: center; padding: 0.75rem; font-weight: 600; color: var(--text-2);">Cantidad</th>
+                    <th style="text-align: right; padding: 0.75rem; font-weight: 600; color: var(--text-2);">Costo Unit.</th>
+                    <th style="text-align: right; padding: 0.75rem; font-weight: 600; color: var(--text-2);">Subtotal</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody style="color: var(--text-1);">
                 ${itemsHTML}
             </tbody>
         </table>
-        
-        <div style="text-align: right; padding: 1rem; background: #f5f5f5; border-radius: 6px;">
-            <p style="margin: 0; font-size: 1.2rem; font-weight: bold;">Total: $${purchaseDetail.total_amount.toFixed(2)}</p>
+
+        <div style="text-align: right; padding: 1rem 1.25rem; background: var(--navy-3); border: 1px solid var(--border); border-radius: var(--radius);">
+            <p style="margin: 0; font-size: 1.2rem; font-weight: bold; color: var(--text-1);">Total: $${purchaseDetail.total_amount.toFixed(2)}</p>
         </div>
     `;
     
@@ -604,7 +618,7 @@ async function saveNewProduct() {
         selectProductForPurchase(newProduct);
 
         // Mostrar mensaje de éxito
-        showSuccess(`✓ Producto "${newProduct.name}" creado correctamente`);
+        showSuccess(`Producto "${newProduct.name}" creado correctamente`);
 
     } catch (error) {
         console.error('Error:', error);
@@ -653,6 +667,22 @@ function showError(message) {
 // CERRAR MODAL DE ERROR
 function closeErrorModal() {
     errorModal.classList.add('hidden');
+}
+
+// ========== MODAL DE CONFIRMACIÓN (reemplaza confirm() nativo) ==========
+
+let confirmActionCallback = null;
+
+function showConfirm(message, onConfirm, acceptLabel = 'Confirmar') {
+    document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-accept-btn').textContent = acceptLabel;
+    confirmActionCallback = onConfirm;
+    document.getElementById('confirm-modal').classList.remove('hidden');
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    confirmActionCallback = null;
 }
 
 // MOSTRAR/OCULTAR LOADER

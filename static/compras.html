@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CastZone — Compras</title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/theme-crisp.css">
     <script src="/js/checkAuth.js"></script>
 </head>
 <body>
@@ -26,7 +27,7 @@
             <li><a href="/productos.html" class="nav-link" data-page="products"><span>Productos</span></a></li>
             <li><a href="/clientes.html" class="nav-link" data-page="customers"><span>Clientes</span></a></li>
             <li><a href="/proveedores.html" class="nav-link" data-page="suppliers"><span>Proveedores</span></a></li>
-            <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 1rem;">
+            <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid var(--border); padding-left: 1rem;">
                 <span id="username-display" style="color: var(--text-2); font-size: 0.875rem;"></span>
                 <button onclick="logout()" class="btn btn-secondary" style="padding: 0.45rem 0.875rem; font-size: 0.875rem;">Salir</button>
             </li>
@@ -43,7 +44,7 @@
         </div>
     </div>
 
-    <div class="content-wrapper">
+    <div class="content-wrapper" style="grid-template-columns: 0.85fr 1.15fr; align-items: start;">
 
         <!-- Panel izquierdo: Formulario de compra -->
         <div class="form-section">
@@ -51,7 +52,7 @@
 
             <div class="form-group">
                 <label for="supplier-search">Proveedor</label>
-                <input type="text" id="supplier-search" placeholder="Buscar por nombre…">
+                <input type="text" id="supplier-search" placeholder="Buscar por nombre…" autocomplete="off">
                 <div id="supplier-search-results" class="search-results"></div>
                 <div id="selected-supplier">
                     <strong>Seleccionado:</strong>
@@ -63,21 +64,26 @@
 
             <div class="form-group">
                 <label for="product-search-purchase">Producto</label>
-                <input type="text" id="product-search-purchase" placeholder="Buscar por nombre…">
+                <input type="text" id="product-search-purchase" placeholder="Buscar por nombre…" autocomplete="off">
                 <div id="search-results-purchase" class="search-results"></div>
                 <button type="button" id="create-new-product-btn" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem; display: none;">
                     + Crear nuevo producto
                 </button>
             </div>
 
-            <div class="form-group">
-                <label for="product-quantity-purchase">Cantidad</label>
-                <input type="number" id="product-quantity-purchase" min="1" value="1">
-            </div>
-
-            <div class="form-group">
-                <label for="unit-cost">Costo Unitario</label>
-                <input type="number" id="unit-cost" placeholder="0.00" min="0" step="0.01" required>
+            <div class="form-group" style="display: flex; gap: 0.75rem;">
+                <div style="flex: 1;">
+                    <label for="product-quantity-purchase">Cantidad</label>
+                    <div class="qty-stepper">
+                        <button type="button" id="qty-purchase-decrease" aria-label="Restar">−</button>
+                        <input type="number" id="product-quantity-purchase" min="1" value="1">
+                        <button type="button" id="qty-purchase-increase" aria-label="Sumar">+</button>
+                    </div>
+                </div>
+                <div style="flex: 1;">
+                    <label for="unit-cost">Costo unitario</label>
+                    <input type="number" id="unit-cost" placeholder="0.00" min="0" step="0.01" required>
+                </div>
             </div>
 
             <button id="add-product-purchase-btn" class="btn btn-primary" style="width:100%;">
@@ -173,6 +179,21 @@
         <h3>Ocurrió un error</h3>
         <p id="error-message"></p>
         <button id="close-error-btn" class="btn btn-secondary">Cerrar</button>
+    </div>
+</div>
+
+<!-- Modal confirmación -->
+<div id="confirm-modal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-icon danger">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <h3>Confirmar acción</h3>
+        <p id="confirm-message">¿Estás seguro?</p>
+        <div style="display: flex; gap: 0.75rem;">
+            <button id="confirm-cancel-btn" class="btn btn-secondary" style="flex: 1; margin: 0;">Cancelar</button>
+            <button id="confirm-accept-btn" class="btn btn-danger-solid" style="flex: 1; margin: 0;">Confirmar</button>
+        </div>
     </div>
 </div>
 

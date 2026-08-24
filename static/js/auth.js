@@ -31,7 +31,7 @@ async function handleLogin(e) {
     // Mostrar estado de carga
     const originalText = loginBtn.textContent;
     loginBtn.disabled = true;
-    loginBtn.innerHTML = '<span class="loading">⏳</span> Iniciando sesión...';
+    loginBtn.innerHTML = '<span class="btn-spinner"></span> Iniciando sesión...';
 
     try {
         const response = await fetch(`${API_BASE}/login`, {

@@ -1,0 +1,463 @@
+/* ─────────────────────────────────────────────────────────
+   Tema "Crisp Minimal" — CastZone
+   Reemplaza los tokens de style.css por una paleta clara,
+   plana y de un solo acento. Se carga DESPUÉS de style.css
+   y solo en las páginas ya migradas a este tema (por ahora,
+   Ventas) para no afectar el resto del sistema todavía.
+   ───────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap');
+
+:root {
+    --navy:        #ffffff;
+    --navy-2:      #ffffff;
+    --navy-3:      #f7f7f8;
+    --navy-border: #e6e6e9;
+    --accent:      #059669;
+    --accent-dim:  rgba(5,150,105,0.1);
+    --accent-glow: rgba(5,150,105,0.22);
+    --success:     #059669;
+    --success-dim: rgba(5,150,105,0.12);
+    --danger:      #dc2626;
+    --danger-dim:  rgba(220,38,38,0.1);
+    --warning:     #d97706;
+    --warning-dim: rgba(217,119,6,0.12);
+    --text-1:      #17171a;
+    --text-2:      #55555f;
+    --text-3:      #8b8b95;
+    --border:      #e6e6e9;
+    --border-2:    #d4d4d9;
+    --surface:     #f7f7f8;
+    --surface-2:   #ececee;
+    --shadow:      0 1px 2px rgba(17,17,17,0.05);
+    --shadow-lg:   0 16px 40px rgba(17,17,17,0.1);
+    --radius:      8px;
+    --radius-sm:   6px;
+    --radius-lg:   10px;
+    --font:        'Manrope', system-ui, sans-serif;
+    --font-display:'Sora', system-ui, sans-serif;
+    --mono:        'Manrope', monospace;
+}
+
+body {
+    font-variant-numeric: tabular-nums;
+}
+
+h1, h2, h3,
+.nav-logo h1,
+.login-logo h1,
+.page-header h2,
+.page-header-text h2,
+.form-section h3,
+.summary-section h3,
+.section-title {
+    font-family: var(--font-display);
+}
+
+/* ─── Correcciones puntuales de reglas que no usaban variables
+       (estaban afinadas para el tema oscuro anterior) ───────── */
+
+.btn-success:hover:not(:disabled) {
+    box-shadow: 0 4px 12px rgba(5,150,105,0.25);
+}
+
+#selected-customer {
+    border-color: rgba(5,150,105,0.22);
+}
+
+/* #selected-supplier never had the same hidden-by-default rule as
+   #selected-customer, so it showed an empty "Seleccionado:" line
+   before anything was picked — same fix, same pattern. */
+#selected-supplier {
+    margin-top: 0.5rem;
+    padding: 0.7rem 0.875rem;
+    background: var(--accent-dim);
+    border: 1px solid rgba(5,150,105,0.22);
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    color: var(--accent);
+    display: none;
+}
+
+#selected-supplier strong {
+    font-weight: 500;
+    margin-right: 0.4rem;
+    color: var(--text-2);
+}
+
+.btn-danger {
+    border-color: rgba(220,38,38,0.28);
+}
+
+/* ─── Modal de confirmación (reemplaza confirm() nativo) ────────── */
+
+.modal-icon.danger {
+    background: var(--danger-dim);
+    color: var(--danger);
+}
+
+.btn-danger-solid {
+    background: var(--danger);
+    color: white;
+    border: 1px solid var(--danger);
+}
+
+.btn-danger-solid:hover {
+    background: #b91c1c;
+    border-color: #b91c1c;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220,38,38,0.3);
+}
+
+/* ─── Ícono de alertas (SVG en vez de emoji) ────────────────────── */
+
+.alert-icon {
+    color: var(--text-2);
+}
+
+.alert-box.warning .alert-icon { color: var(--warning); }
+.alert-box.success .alert-icon { color: var(--success); }
+.alert-box.info    .alert-icon { color: var(--accent); }
+.alert-box:not(.warning):not(.success):not(.info) .alert-icon { color: var(--danger); }
+
+.loader {
+    background: rgba(255,255,255,0.82);
+}
+
+/* ─── Nav: subrayado en vez de fondo sólido para el link activo ─ */
+
+.nav-link.active {
+    background: transparent;
+}
+
+.nav-link.active::after {
+    background: var(--accent);
+}
+
+/* ─── Movimiento: entrada suave para filas que el JS inserta ──── */
+
+@keyframes czFadeSlideUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.cart-item,
+.search-result-item {
+    animation: czFadeSlideUp .28s cubic-bezier(.16,1,.3,1) both;
+}
+
+button, .btn {
+    transition: transform .16s cubic-bezier(.16,1,.3,1), box-shadow .2s ease,
+                background .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease;
+}
+
+/* ─── Estado de caja: barra compacta en línea, no tarjeta grande ─ */
+
+.box-status-panel {
+    flex-direction: row;
+    align-items: center;
+    min-width: 0;
+    padding: 0.65rem 1.1rem;
+    border-radius: var(--radius);
+    gap: 1rem;
+}
+
+.box-status-label {
+    display: none;
+}
+
+.box-status-value {
+    font-size: 0.875rem;
+}
+
+/* ─── Selector de cantidad con stepper +/- ──────────────────────── */
+
+.qty-stepper {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius);
+    background: var(--navy-3);
+    overflow: hidden;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.qty-stepper:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.qty-stepper button {
+    width: 38px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    color: var(--text-2);
+    font-size: 1.1rem;
+    font-weight: 500;
+    padding: 0;
+}
+
+.qty-stepper button:hover {
+    background: var(--surface-2);
+    color: var(--text-1);
+    transform: none;
+    box-shadow: none;
+}
+
+.qty-stepper input {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+}
+
+/* ─── Carrito: fila de dos columnas (info / total + acción) ────── */
+
+.cart-item {
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.cart-item-total {
+    font-family: var(--mono);
+    font-weight: 600;
+    color: var(--text-1);
+    font-size: 0.875rem;
+    min-width: 5.5rem;
+    text-align: right;
+}
+
+.cart-item-remove {
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-3);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    transition: color .15s ease, background .15s ease;
+}
+
+.cart-item-remove:hover {
+    color: var(--danger);
+    background: var(--danger-dim);
+    transform: none;
+    box-shadow: none;
+}
+
+/* ─── Select de método de pago: apariencia nativa pero prolija ─── */
+
+#payment-method {
+    cursor: pointer;
+}
+
+.btn-spinner {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -2px;
+    margin-right: 0.35rem;
+}
+
+/* ─── LOGIN: pantalla dividida 40/60 ─────────────────────────────── */
+
+.login-split {
+    min-height: 100vh;
+    display: flex;
+}
+
+.login-form-panel {
+    width: 40%;
+    min-width: 380px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2.5rem;
+    background: var(--navy);
+}
+
+.login-form-panel .login-card {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    width: 100%;
+    max-width: 380px;
+}
+
+.login-showcase {
+    width: 60%;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    padding: 3rem;
+    background:
+        radial-gradient(circle at 18% 20%, rgba(5,150,105,0.35), transparent 42%),
+        radial-gradient(circle at 82% 78%, rgba(8,145,178,0.22), transparent 45%),
+        linear-gradient(165deg, #0b1f18 0%, #0a2e22 55%, #071a13 100%);
+}
+
+.login-showcase::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px);
+    background-size: 28px 28px;
+    pointer-events: none;
+}
+
+.showcase-illustration {
+    width: 100%;
+    max-width: 440px;
+    position: relative;
+    z-index: 1;
+}
+
+.showcase-illustration svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    filter: drop-shadow(0 24px 48px rgba(0,0,0,0.35));
+}
+
+.showcase-carousel {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 440px;
+    text-align: center;
+}
+
+.showcase-slides {
+    position: relative;
+    min-height: 92px;
+}
+
+.showcase-slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    animation: showcaseFade 12s ease-in-out infinite;
+}
+
+.showcase-slide h2 {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f4fbf8;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.6rem;
+}
+
+.showcase-slide p {
+    font-size: 0.9375rem;
+    color: rgba(234,255,245,0.72);
+    line-height: 1.6;
+    max-width: 380px;
+    margin: 0 auto;
+}
+
+.slide-1 { animation-delay: 0s; }
+.slide-2 { animation-delay: 4s; }
+.slide-3 { animation-delay: 8s; }
+
+@keyframes showcaseFade {
+    0%     { opacity: 0; transform: translateY(6px); }
+    4%     { opacity: 1; transform: translateY(0); }
+    28%    { opacity: 1; transform: translateY(0); }
+    33%    { opacity: 0; transform: translateY(-6px); }
+    100%   { opacity: 0; }
+}
+
+.showcase-dots {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+}
+
+.showcase-dots .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.25);
+    animation: showcaseDot 12s ease-in-out infinite;
+}
+
+.dot-1 { animation-delay: 0s; }
+.dot-2 { animation-delay: 4s; }
+.dot-3 { animation-delay: 8s; }
+
+@keyframes showcaseDot {
+    0%, 100% { background: rgba(255,255,255,0.25); width: 6px; }
+    4%, 28%  { background: #059669; width: 18px; }
+    33%      { background: rgba(255,255,255,0.25); width: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .showcase-slide, .showcase-dots .dot { animation: none; }
+    .showcase-slide { opacity: 0; }
+    .slide-1 { opacity: 1; }
+    .dot-1 { background: #059669; width: 18px; }
+}
+
+@media (max-width: 960px) {
+    .login-showcase { display: none; }
+    .login-form-panel { width: 100%; min-width: 0; }
+}
+
+/* ─── Inputs sueltos (fuera de .form-group) ─────────────────────── */
+
+#filter-products,
+#filter-customers,
+#filter-suppliers {
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+#filter-products:focus,
+#filter-customers:focus,
+#filter-suppliers:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* ─── Botón "Ver" del historial ─────────────────────────────────── */
+
+.btn-view {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--border-2);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.btn-view:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    transform: none;
+    box-shadow: none;
+}

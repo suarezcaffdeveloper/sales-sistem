@@ -22,14 +22,14 @@ function displayUsername() {
     const username = getUsername();
     const usernameDisplay = document.getElementById('username-display');
     if (usernameDisplay && username) {
-        usernameDisplay.textContent = `👤 ${username}`;
+        usernameDisplay.textContent = username;
     }
 }
 
 function setupEventListeners() {
     saveCustomerBtn.addEventListener('click', saveCustomer);
     cancelCustomerBtn.addEventListener('click', cancelEdit);
-    
+
     // Filtro de búsqueda
     const filterInput = document.getElementById('filter-customers');
     if (filterInput) {
@@ -38,6 +38,29 @@ function setupEventListeners() {
             filterCustomers(searchTerm);
         });
     }
+
+    document.getElementById('confirm-cancel-btn')?.addEventListener('click', closeConfirmModal);
+    document.getElementById('confirm-accept-btn')?.addEventListener('click', () => {
+        const callback = confirmActionCallback;
+        closeConfirmModal();
+        if (callback) callback();
+    });
+}
+
+// ========== MODAL DE CONFIRMACIÓN (reemplaza confirm() nativo) ==========
+
+let confirmActionCallback = null;
+
+function showConfirm(message, onConfirm, acceptLabel = 'Confirmar') {
+    document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-accept-btn').textContent = acceptLabel;
+    confirmActionCallback = onConfirm;
+    document.getElementById('confirm-modal').classList.remove('hidden');
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    confirmActionCallback = null;
 }
 
 // CARGAR CLIENTES
@@ -51,7 +74,7 @@ async function loadCustomers() {
         renderCustomers();
     } catch (error) {
         console.error('Error cargando clientes:', error);
-        customersTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: red;">Error al cargar los clientes</td></tr>';
+        customersTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--danger);">Error al cargar los clientes</td></tr>';
         showError('Error al cargar los clientes: ' + error.message);
     }
 }
@@ -73,9 +96,9 @@ function renderCustomers() {
             <td>${customer.email}</td>
             <td>${customer.phone}</td>
             <td>${customer.address}</td>
-            <td>
-                <button class="btn-danger" onclick="editCustomer(${customer.id})">✏️ Editar</button>
-                <button class="btn-danger" onclick="deleteCustomer(${customer.id})">🗑️ Eliminar</button>
+            <td style="white-space: nowrap;">
+                <button class="btn btn-view" onclick="editCustomer(${customer.id})" style="margin-right: 0.4rem;">Editar</button>
+                <button class="btn-danger" onclick="deleteCustomer(${customer.id})">Eliminar</button>
             </td>
         `;
         customersTbody.appendChild(tr);
@@ -194,7 +217,7 @@ function editCustomer(id) {
     customerAddressInput.value = customer.address;
     editingId = id;
 
-    saveCustomerBtn.textContent = '✏️ Actualizar Cliente';
+    saveCustomerBtn.textContent = 'Actualizar cliente';
     cancelCustomerBtn.style.display = 'block';
     customerNameInput.focus();
 }
@@ -205,25 +228,25 @@ function cancelEdit() {
 }
 
 // ELIMINAR CLIENTE
-async function deleteCustomer(id) {
-    if (!confirm('¿Estás seguro de que deseas eliminar este cliente?')) return;
+function deleteCustomer(id) {
+    showConfirm('¿Estás seguro de que deseas eliminar este cliente? Esta acción no se puede deshacer.', async () => {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/customers/${id}`, {
+                method: 'DELETE'
+            });
 
-    try {
-        const response = await fetchWithAuth(`${API_BASE}/customers/${id}`, {
-            method: 'DELETE'
-        });
+            if (!response.ok) {
+                const errorData = await response.json();
+                showError(errorData.detail || 'Error al eliminar el cliente');
+                return;
+            }
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            showError(errorData.detail || 'Error al eliminar el cliente');
-            return;
+            loadCustomers();
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Error de conexión: ' + error.message);
         }
-
-        loadCustomers();
-    } catch (error) {
-        console.error('Error:', error);
-        showError('Error de conexión: ' + error.message);
-    }
+    }, 'Eliminar');
 }
 
 // LIMPIAR FORMULARIO
@@ -233,7 +256,7 @@ function clearForm() {
     customerPhoneInput.value = '';
     customerAddressInput.value = '';
     editingId = null;
-    saveCustomerBtn.textContent = '💾 Guardar Cliente';
+    saveCustomerBtn.textContent = 'Guardar cliente';
     cancelCustomerBtn.style.display = 'none';
 }
 
@@ -269,7 +292,7 @@ function filterCustomers(searchTerm) {
     if (!visibleRows && searchTerm !== '') {
         const tr = document.createElement('tr');
         tr.className = 'no-results-row';
-        tr.innerHTML = '<td colspan="6" style="text-align: center; padding: 2rem; color: #999;">No se encontraron clientes con "' + searchTerm.toUpperCase() + '"</td>';
+        tr.innerHTML = '<td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-3);">No se encontraron clientes con "' + searchTerm.toUpperCase() + '"</td>';
         customersTbody.appendChild(tr);
     }
 }

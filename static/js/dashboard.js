@@ -37,7 +37,7 @@ function displayUsername() {
     const username = getUsername();
     const usernameDisplay = document.getElementById('username-display');
     if (usernameDisplay && username) {
-        usernameDisplay.textContent = `👤 ${username}`;
+        usernameDisplay.textContent = username;
     }
 }
 
@@ -81,19 +81,19 @@ function renderTopProducts(products) {
     tbody.innerHTML = '';
     
     if (products.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #999;">No hay datos de ventas</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-3);">No hay datos de ventas</td></tr>';
         return;
     }
-    
+
     products.forEach((product, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${index + 1}</td>
             <td><strong>${product.name}</strong></td>
             <td>$${product.price.toFixed(2)}</td>
-            <td><span style="background: #d1fae5; color: #065f46; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">${product.quantity_sold}</span></td>
-            <td><strong style="color: #10b981;">$${product.revenue.toFixed(2)}</strong></td>
-            <td><strong style="color: #0084ff;">$${product.profit.toFixed(2)}</strong></td>
+            <td><span style="background: var(--success-dim); color: var(--success); padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">${product.quantity_sold}</span></td>
+            <td><strong style="color: var(--success);">$${product.revenue.toFixed(2)}</strong></td>
+            <td><strong style="color: var(--accent);">$${product.profit.toFixed(2)}</strong></td>
         `;
         tbody.appendChild(tr);
     });
@@ -105,19 +105,19 @@ function renderBottomProducts(products) {
     tbody.innerHTML = '';
     
     if (products.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #999;">No hay datos</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-3);">No hay datos</td></tr>';
         return;
     }
-    
+
     products.forEach((product, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${index + 1}</td>
             <td><strong>${product.name}</strong></td>
             <td>$${product.price.toFixed(2)}</td>
-            <td><span style="background: #fee2e2; color: #7f1d1d; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">${product.quantity_sold}</span></td>
-            <td><strong style="color: #ef4444;">$${product.revenue.toFixed(2)}</strong></td>
-            <td><strong style="color: #0084ff;">$${product.profit.toFixed(2)}</strong></td>
+            <td><span style="background: var(--danger-dim); color: var(--danger); padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">${product.quantity_sold}</span></td>
+            <td><strong style="color: var(--danger);">$${product.revenue.toFixed(2)}</strong></td>
+            <td><strong style="color: var(--accent);">$${product.profit.toFixed(2)}</strong></td>
         `;
         tbody.appendChild(tr);
     });
@@ -136,20 +136,22 @@ function renderLowStockAlerts(products) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'alert-box warning';
     alertDiv.innerHTML = `
-        <div class="alert-icon">⚠️</div>
+        <div class="alert-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
         <div class="alert-content">
             <h4>¡Atención! Stock bajo detectado</h4>
             <p>${products.length} producto(s) tienen menos de 3 unidades en stock.</p>
         </div>
     `;
     lowStockAlertsEl.appendChild(alertDiv);
-    
+
     // Lista de productos con stock bajo
     const listDiv = document.createElement('div');
     listDiv.className = 'form-section';
     listDiv.style.marginBottom = '2rem';
-    listDiv.innerHTML = '<h3>🔔 Productos con Stock Bajo</h3>';
-    
+    listDiv.innerHTML = '<h3>Productos con stock bajo</h3>';
+
     const table = document.createElement('table');
     table.innerHTML = `
         <thead>
@@ -163,7 +165,8 @@ function renderLowStockAlerts(products) {
         </thead>
         <tbody>
             ${products.map(product => {
-                const statusColor = product.stock === 0 ? '#ef4444' : '#f59e0b';
+                const statusColor = product.stock === 0 ? 'var(--danger)' : 'var(--warning)';
+                const statusBg = product.stock === 0 ? 'var(--danger-dim)' : 'var(--warning-dim)';
                 const statusText = product.stock === 0 ? 'SIN STOCK' : 'STOCK BAJO';
                 const costPriceText = product.cost_price ? `$${product.cost_price.toFixed(2)}` : 'No definido';
                 return `
@@ -172,7 +175,7 @@ function renderLowStockAlerts(products) {
                         <td><span style="font-size: 1.2rem; font-weight: 700; color: ${statusColor};">${product.stock}</span></td>
                         <td>$${product.price.toFixed(2)}</td>
                         <td>${costPriceText}</td>
-                        <td><span style="background: ${statusColor}22; color: ${statusColor}; padding: 0.25rem 0.75rem; border-radius: 4px; font-weight: 600; font-size: 0.85rem;">${statusText}</span></td>
+                        <td><span style="background: ${statusBg}; color: ${statusColor}; padding: 0.25rem 0.75rem; border-radius: 4px; font-weight: 600; font-size: 0.85rem;">${statusText}</span></td>
                     </tr>
                 `;
             }).join('')}
@@ -275,14 +278,14 @@ function renderPendingDebtsPanel(data) {
         <div class="form-section mt-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                 <h3>Facturas Adeudadas</h3>
-                <span style="background: #fee2e2; color: #991b1b; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 600;">
+                <span style="background: var(--danger-dim); color: var(--danger); padding: 0.5rem 1rem; border-radius: var(--radius-sm); font-weight: 600;">
                     ${pendingCount} factura${pendingCount !== 1 ? 's'  : ''} • Deuda Total: $${totalDebt.toFixed(2)}
                 </span>
             </div>
     `;
-    
+
     if (debts.length === 0) {
-        tableHTML += '<p style="color: #4caf50; text-align: center; padding: 2rem;">✓ No hay facturas adeudadas</p>';
+        tableHTML += '<p style="color: var(--success); text-align: center; padding: 2rem;">No hay facturas adeudadas</p>';
     } else {
         tableHTML += `
             <div class="table-wrapper" style="max-height: 310px; overflow-y: auto;">
@@ -295,26 +298,26 @@ function renderPendingDebtsPanel(data) {
                             <th style="text-align: center;">Productos</th>
                             <th style="text-align: right;">Total</th>
                             <th style="text-align: right;">Pagado</th>
-                            <th style="text-align: right; color: #dc3545;">Deuda</th>
+                            <th style="text-align: right;">Deuda</th>
                             <th style="text-align: center;">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
         `;
-        
+
         debts.forEach(debt => {
             tableHTML += `
                 <tr>
-                    <td style="font-weight: 600; color: #1976d2;">#${String(debt.sale_id).padStart(6, '0')}</td>
+                    <td style="font-weight: 600; color: var(--accent);">#${String(debt.sale_id).padStart(6, '0')}</td>
                     <td><strong>${debt.customer_name}</strong></td>
-                    <td style="color: #666; font-size: 0.9rem;">${debt.customer_phone}</td>
-                    <td style="text-align: center; color: #666;">${debt.item_count}</td>
+                    <td style="font-size: 0.9rem;">${debt.customer_phone}</td>
+                    <td style="text-align: center;">${debt.item_count}</td>
                     <td style="text-align: right; font-weight: 600;">$${debt.total_amount.toFixed(2)}</td>
-                    <td style="text-align: right; color: #4caf50;">$${debt.paid_amount.toFixed(2)}</td>
-                    <td style="text-align: right; font-weight: 600; color: #dc3545;">$${debt.debt_amount.toFixed(2)}</td>
+                    <td style="text-align: right; color: var(--success);">$${debt.paid_amount.toFixed(2)}</td>
+                    <td style="text-align: right; font-weight: 600; color: var(--danger);">$${debt.debt_amount.toFixed(2)}</td>
                     <td style="text-align: center;">
-                        <button onclick="openPaymentModal(${debt.sale_id}, '${debt.customer_name}', ${debt.total_amount}, ${debt.paid_amount}, ${debt.debt_amount})" 
-                                style="background: #1976d2; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 600;">
+                        <button class="btn btn-primary" onclick="openPaymentModal(${debt.sale_id}, '${debt.customer_name}', ${debt.total_amount}, ${debt.paid_amount}, ${debt.debt_amount})"
+                                style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                             Pagar
                         </button>
                     </td>
@@ -343,26 +346,26 @@ async function loadDailyBoxInfo() {
         
         if (!currentResponse.ok) {
             // Si hay error, mostrar caja cerrada
-            document.getElementById('dashboard-box-status').textContent = '✗ Caja Cerrada';
-            document.getElementById('dashboard-box-status').style.color = '#d32f2f';
+            document.getElementById('dashboard-box-status').textContent = 'Caja Cerrada';
+            document.getElementById('dashboard-box-status').style.color = '#dc2626';
             document.getElementById('dashboard-today-sales').textContent = '$0.00';
             document.getElementById('dashboard-today-profit').textContent = '$0.00';
             document.getElementById('dashboard-today-count').textContent = '0';
             renderDailyBoxesTable([]);
             return;
         }
-        
+
         const currentBox = await currentResponse.json();
-        
+
         if (currentBox && currentBox.status === 'open') {
-            document.getElementById('dashboard-box-status').textContent = '✓ Caja Abierta';
-            document.getElementById('dashboard-box-status').style.color = '#4caf50';
+            document.getElementById('dashboard-box-status').textContent = 'Caja Abierta';
+            document.getElementById('dashboard-box-status').style.color = '#059669';
             document.getElementById('dashboard-today-sales').textContent = `$${(currentBox.total_sales || 0).toFixed(2)}`;
             document.getElementById('dashboard-today-profit').textContent = `$${(currentBox.total_profit || 0).toFixed(2)}`;
             document.getElementById('dashboard-today-count').textContent = currentBox.sale_count || 0;
         } else {
-            document.getElementById('dashboard-box-status').textContent = '✗ Caja Cerrada';
-            document.getElementById('dashboard-box-status').style.color = '#d32f2f';
+            document.getElementById('dashboard-box-status').textContent = 'Caja Cerrada';
+            document.getElementById('dashboard-box-status').style.color = '#dc2626';
             document.getElementById('dashboard-today-sales').textContent = '$0.00';
             document.getElementById('dashboard-today-profit').textContent = '$0.00';
             document.getElementById('dashboard-today-count').textContent = '0';
@@ -385,8 +388,8 @@ async function loadDailyBoxInfo() {
     } catch (error) {
         console.error('Error cargando información de caja:', error);
         // Mostrar interfaz con valores por defecto
-        document.getElementById('dashboard-box-status').textContent = '✗ Error';
-        document.getElementById('dashboard-box-status').style.color = '#d32f2f';
+        document.getElementById('dashboard-box-status').textContent = 'Error';
+        document.getElementById('dashboard-box-status').style.color = '#dc2626';
         renderDailyBoxesTable([]);
     }
 }
@@ -405,14 +408,14 @@ async function checkDailyBoxRefresh() {
             
             // Actualizar solo los valores (no renderizar tabla completa)
             if (currentBox && currentBox.status === 'open') {
-                document.getElementById('dashboard-box-status').textContent = '✓ Caja Abierta';
-                document.getElementById('dashboard-box-status').style.color = '#4caf50';
+                document.getElementById('dashboard-box-status').textContent = 'Caja Abierta';
+                document.getElementById('dashboard-box-status').style.color = '#059669';
                 document.getElementById('dashboard-today-sales').textContent = `$${(currentBox.total_sales || 0).toFixed(2)}`;
                 document.getElementById('dashboard-today-profit').textContent = `$${(currentBox.total_profit || 0).toFixed(2)}`;
                 document.getElementById('dashboard-today-count').textContent = currentBox.sale_count || 0;
             } else {
-                document.getElementById('dashboard-box-status').textContent = '✗ Caja Cerrada';
-                document.getElementById('dashboard-box-status').style.color = '#d32f2f';
+                document.getElementById('dashboard-box-status').textContent = 'Caja Cerrada';
+                document.getElementById('dashboard-box-status').style.color = '#dc2626';
             }
         }
     } catch (error) {
@@ -431,34 +434,34 @@ function renderDailyBoxesTable(boxes) {
     const tableBody = document.getElementById('daily-boxes-table');
     
     if (!Array.isArray(boxes) || boxes.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 1rem; color: #999;">No hay cajas registradas</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 1rem; color: var(--text-3);">No hay cajas registradas</td></tr>';
         return;
     }
-    
+
     tableBody.innerHTML = boxes.map(box => {
         const date = new Date(box.date);
         const formattedDate = date.toLocaleDateString('es-ES');
         const isoDate = box.date;
-        const statusBadge = box.status === 'open' 
-            ? '<span style="background: #d1fae5; color: #065f46; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">Abierta</span>'
-            : '<span style="background: #fee2e2; color: #991b1b; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">Cerrada</span>';
-        
+        const statusBadge = box.status === 'open'
+            ? '<span style="background: var(--success-dim); color: var(--success); padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">Abierta</span>'
+            : '<span style="background: var(--danger-dim); color: var(--danger); padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">Cerrada</span>';
+
         return `
             <tr>
                 <td><strong>${formattedDate}</strong></td>
                 <td>${statusBadge}</td>
-                <td style="color: #4caf50; font-weight: 600;">$${(box.total_sales || 0).toFixed(2)}</td>
-                <td style="color: #ff9800; font-weight: 600;">$${(box.total_profit || 0).toFixed(2)}</td>
+                <td style="color: var(--success); font-weight: 600;">$${(box.total_sales || 0).toFixed(2)}</td>
+                <td style="color: var(--warning); font-weight: 600;">$${(box.total_profit || 0).toFixed(2)}</td>
                 <td>$${(box.opening_balance || 0).toFixed(2)}</td>
                 <td>${box.closing_balance ? `$${box.closing_balance.toFixed(2)}` : '-'}</td>
                 <td style="white-space:nowrap;">
-                    <button onclick="exportDailyBoxExcel('${isoDate}')" title="Exportar Excel"
-                        style="background:var(--success-dim);color:var(--success);border:none;border-radius:6px;padding:0.25rem 0.6rem;cursor:pointer;font-size:0.78rem;font-weight:600;margin-right:0.25rem;">
-                        📊 XLS
+                    <button class="btn btn-view" onclick="exportDailyBoxExcel('${isoDate}')" title="Exportar Excel"
+                        style="padding:0.3rem 0.65rem;font-size:0.78rem;margin-right:0.25rem;">
+                        XLS
                     </button>
-                    <button onclick="exportDailyBoxPDF('${isoDate}')" title="Exportar PDF"
-                        style="background:var(--danger-dim);color:var(--danger);border:none;border-radius:6px;padding:0.25rem 0.6rem;cursor:pointer;font-size:0.78rem;font-weight:600;">
-                        📄 PDF
+                    <button class="btn btn-view" onclick="exportDailyBoxPDF('${isoDate}')" title="Exportar PDF"
+                        style="padding:0.3rem 0.65rem;font-size:0.78rem;">
+                        PDF
                     </button>
                 </td>
             </tr>
@@ -550,7 +553,7 @@ async function processDebtPayment() {
         
         // Éxito
         closePaymentModal();
-        showSuccessDashboard('✓ Pago registrado correctamente');
+        showSuccessDashboard('Pago registrado correctamente');
         
         // Refrescar datos
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -639,9 +642,9 @@ function renderSalesChart(data, groupBy) {
 
     if (!data || data.length === 0) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#64748b';
+        ctx.fillStyle = '#8b8b95';
         ctx.textAlign = 'center';
-        ctx.font = '14px DM Sans, sans-serif';
+        ctx.font = '14px Manrope, sans-serif';
         ctx.fillText('Sin datos para el período seleccionado', canvas.width / 2, canvas.height / 2);
         return;
     }
@@ -654,8 +657,8 @@ function renderSalesChart(data, groupBy) {
                 {
                     label: 'Ventas ($)',
                     data: data.map(d => d.total_sales),
-                    backgroundColor: 'rgba(79, 124, 255, 0.55)',
-                    borderColor: '#4f7cff',
+                    backgroundColor: 'rgba(5, 150, 105, 0.55)',
+                    borderColor: '#059669',
                     borderWidth: 2,
                     borderRadius: 5,
                     yAxisID: 'y'
@@ -663,8 +666,8 @@ function renderSalesChart(data, groupBy) {
                 {
                     label: 'Ganancia ($)',
                     data: data.map(d => d.profit || 0),
-                    backgroundColor: 'rgba(34, 197, 94, 0.45)',
-                    borderColor: '#22c55e',
+                    backgroundColor: 'rgba(8, 145, 178, 0.4)',
+                    borderColor: '#0891b2',
                     borderWidth: 2,
                     borderRadius: 5,
                     yAxisID: 'y'
@@ -673,11 +676,11 @@ function renderSalesChart(data, groupBy) {
                     label: 'Transacciones',
                     data: data.map(d => d.count),
                     type: 'line',
-                    backgroundColor: 'rgba(251, 191, 36, 0.15)',
-                    borderColor: '#fbbf24',
+                    backgroundColor: 'rgba(217, 119, 6, 0.12)',
+                    borderColor: '#d97706',
                     borderWidth: 2,
                     pointRadius: 4,
-                    pointBackgroundColor: '#fbbf24',
+                    pointBackgroundColor: '#d97706',
                     tension: 0.3,
                     yAxisID: 'y2'
                 }
@@ -687,11 +690,11 @@ function renderSalesChart(data, groupBy) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { color: '#94a3b8', font: { family: 'DM Sans, sans-serif' } } },
+                legend: { labels: { color: '#55555f', font: { family: 'Manrope, sans-serif' } } },
                 tooltip: {
-                    backgroundColor: '#1e2333',
-                    titleColor: '#f1f5f9',
-                    bodyColor: '#94a3b8',
+                    backgroundColor: '#17171a',
+                    titleColor: '#ffffff',
+                    bodyColor: '#d4d4d9',
                     borderColor: 'rgba(255,255,255,0.08)',
                     borderWidth: 1,
                     callbacks: {
@@ -703,15 +706,15 @@ function renderSalesChart(data, groupBy) {
                 }
             },
             scales: {
-                x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                x: { ticks: { color: '#8b8b95' }, grid: { color: 'rgba(17,17,17,0.05)' } },
                 y: {
                     position: 'left',
-                    ticks: { color: '#64748b', callback: v => '$' + v.toFixed(0) },
-                    grid: { color: 'rgba(255,255,255,0.05)' }
+                    ticks: { color: '#8b8b95', callback: v => '$' + v.toFixed(0) },
+                    grid: { color: 'rgba(17,17,17,0.05)' }
                 },
                 y2: {
                     position: 'right',
-                    ticks: { color: '#fbbf24' },
+                    ticks: { color: '#d97706' },
                     grid: { drawOnChartArea: false }
                 }
             }
@@ -733,7 +736,7 @@ function renderChartSummary(data, summary = {}) {
 
     function growthBadge(pct) {
         if (pct === null || pct === undefined) return '';
-        const color = pct >= 0 ? '#22c55e' : '#ef4444';
+        const color = pct >= 0 ? '#059669' : '#dc2626';
         const arrow = pct >= 0 ? '▲' : '▼';
         return `<div style="font-size:0.72rem;color:${color};font-weight:600;margin-top:2px;">${arrow} ${Math.abs(pct)}% vs ${periodLabel}</div>`;
     }
@@ -814,7 +817,7 @@ function renderStaleProducts(products) {
     if (!tbody) return;
 
     if (!products || products.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--success);">✓ Todos los productos tienen ventas recientes</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--success);">Todos los productos tienen ventas recientes</td></tr>';
         return;
     }
 
@@ -859,7 +862,7 @@ function renderInactiveCustomers(customers) {
     if (!tbody) return;
 
     if (!customers || customers.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--success);">✓ Todos los clientes compraron recientemente</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--success);">Todos los clientes compraron recientemente</td></tr>';
         return;
     }
 
@@ -953,8 +956,8 @@ function renderDebtChart(data) {
                 {
                     label: 'Deuda generada ($)',
                     data: debtValues,
-                    backgroundColor: 'rgba(239,68,68,0.5)',
-                    borderColor: 'rgba(239,68,68,1)',
+                    backgroundColor: 'rgba(220,38,38,0.5)',
+                    borderColor: 'rgba(220,38,38,1)',
                     borderWidth: 2,
                     borderRadius: 4,
                     order: 2
@@ -963,11 +966,11 @@ function renderDebtChart(data) {
                     label: 'Ventas totales ($)',
                     data: salesValues,
                     type: 'line',
-                    borderColor: 'rgba(99,179,237,0.9)',
-                    backgroundColor: 'rgba(99,179,237,0.1)',
+                    borderColor: 'rgba(5,150,105,0.9)',
+                    backgroundColor: 'rgba(5,150,105,0.1)',
                     borderWidth: 2,
                     pointRadius: 4,
-                    pointBackgroundColor: 'rgba(99,179,237,1)',
+                    pointBackgroundColor: 'rgba(5,150,105,1)',
                     tension: 0.3,
                     fill: false,
                     order: 1
@@ -978,18 +981,21 @@ function renderDebtChart(data) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { color: '#94a3b8', font: { size: 12 } } },
+                legend: { labels: { color: '#55555f', font: { size: 12 } } },
                 tooltip: {
+                    backgroundColor: '#17171a',
+                    titleColor: '#ffffff',
+                    bodyColor: '#d4d4d9',
                     callbacks: {
                         label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`
                     }
                 }
             },
             scales: {
-                x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                x: { ticks: { color: '#8b8b95' }, grid: { color: 'rgba(17,17,17,0.05)' } },
                 y: {
-                    ticks: { color: '#64748b', callback: v => `$${v.toFixed(0)}` },
-                    grid: { color: 'rgba(255,255,255,0.05)' }
+                    ticks: { color: '#8b8b95', callback: v => `$${v.toFixed(0)}` },
+                    grid: { color: 'rgba(17,17,17,0.05)' }
                 }
             }
         }
@@ -1057,9 +1063,9 @@ function renderBusinessInsights(insights) {
     container.innerHTML = insights.map(ins => {
         const style = typeColors[ins.type] || typeColors.info;
         return `
-            <div style="display:flex;gap:1rem;align-items:flex-start;padding:1rem 1.25rem;
-                        background:${style.bg};border-radius:12px;margin-bottom:0.75rem;">
-                <span style="font-size:1.5rem;flex-shrink:0;">${ins.icon}</span>
+            <div style="display:flex;gap:0.75rem;align-items:flex-start;padding:1rem 1.25rem;
+                        background:${style.bg};border-radius:var(--radius);margin-bottom:0.75rem;
+                        border-left:3px solid ${style.color};">
                 <div>
                     <div style="font-weight:600;color:${style.color};font-size:0.9rem;">${ins.title}</div>
                     <div style="color:var(--text-2);font-size:0.82rem;margin-top:0.2rem;">${ins.detail}</div>

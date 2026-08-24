@@ -71,7 +71,7 @@ function displayUsername() {
     const username = getUsername();
     const usernameDisplay = document.getElementById('username-display');
     if (usernameDisplay && username) {
-        usernameDisplay.textContent = `👤 ${username}`;
+        usernameDisplay.textContent = username;
     }
 }
 
@@ -88,9 +88,25 @@ function setupEventListeners() {
         if (e.key === 'Enter') addProductToCart();
     });
 
+    // Stepper +/- de cantidad
+    document.getElementById('qty-decrease')?.addEventListener('click', () => {
+        const current = parseInt(productQuantity.value) || 1;
+        productQuantity.value = Math.max(1, current - 1);
+    });
+    document.getElementById('qty-increase')?.addEventListener('click', () => {
+        const current = parseInt(productQuantity.value) || 1;
+        productQuantity.value = current + 1;
+    });
+
     // Cerrar modales
     document.getElementById('close-modal-btn')?.addEventListener('click', closeModal);
     document.getElementById('close-error-btn')?.addEventListener('click', closeErrorModal);
+    document.getElementById('confirm-cancel-btn')?.addEventListener('click', closeConfirmModal);
+    document.getElementById('confirm-accept-btn')?.addEventListener('click', () => {
+        const callback = confirmActionCallback;
+        closeConfirmModal();
+        if (callback) callback();
+    });
 }
 
 // CARGAR CLIENTES
@@ -293,10 +309,13 @@ function renderCart() {
             <div class="cart-item-info">
                 <div class="cart-item-name">${item.product_name}</div>
                 <div class="cart-item-details">
-                    $${item.product_price.toFixed(2)} c/u × ${item.quantity} = $${itemTotal.toFixed(2)}
+                    ×${item.quantity} · $${item.product_price.toFixed(2)} c/u
                 </div>
             </div>
-            <button class="btn-danger" onclick="removeFromCart(${index})">🗑️</button>
+            <div class="cart-item-total">$${itemTotal.toFixed(2)}</div>
+            <button class="cart-item-remove" onclick="removeFromCart(${index})" aria-label="Quitar producto">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
         `;
         cartItemsContainer.appendChild(div);
     });
@@ -332,11 +351,11 @@ function clearCart() {
         return;
     }
 
-    if (confirm('¿Estás seguro de que deseas limpiar el carrito?')) {
+    showConfirm('¿Estás seguro de que deseas limpiar el carrito?', () => {
         cartItems = [];
         renderCart();
         updateCompleteButton();
-    }
+    }, 'Limpiar');
 }
 
 // COMPLETAR VENTA
@@ -569,7 +588,7 @@ function generateTicketHTML(saleDetails) {
             </div>
             <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; font-size: 1rem;">
                 <span>Estado:</span>
-                <span style="font-weight: bold; color: ${saleDetails.status === 'pagado' ? '#28a745' : saleDetails.status === 'parcial' ? '#ffc107' : '#dc3545'};">
+                <span style="font-weight: bold; color: ${saleDetails.status === 'pagado' ? '#059669' : saleDetails.status === 'parcial' ? '#d97706' : '#dc2626'};">
                     ${(saleDetails.status || 'PENDIENTE').toUpperCase()}
                 </span>
             </div>
@@ -655,6 +674,22 @@ function showError(message) {
 // CERRAR MODAL DE ERROR
 function closeErrorModal() {
     errorModal.classList.add('hidden');
+}
+
+// ========== MODAL DE CONFIRMACIÓN (reemplaza confirm() nativo) ==========
+
+let confirmActionCallback = null;
+
+function showConfirm(message, onConfirm, acceptLabel = 'Confirmar') {
+    document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-accept-btn').textContent = acceptLabel;
+    confirmActionCallback = onConfirm;
+    document.getElementById('confirm-modal').classList.remove('hidden');
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    confirmActionCallback = null;
 }
 
 // MOSTRAR/OCULTAR LOADER
@@ -795,21 +830,16 @@ function renderSalesHistory(sales) {
         const date = new Date(sale.created_at);
         const formattedDate = date.toLocaleDateString('es-ES');
         const formattedTime = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-        
+
         tableHTML += `
             <tr>
-                <td style="color: #666;">#${String(sale.id).padStart(6, '0')}</td>
-                <td style="color: #333; font-weight: 500;">${sale.customer_name}</td>
-                <td style="color: #666; font-size: 0.9rem;">${formattedDate} ${formattedTime}</td>
-                <td style="color: #666; font-size: 0.9rem; text-align: center;">${sale.item_count} producto${sale.item_count !== 1 ? 's' : ''}</td>
-                <td style="text-align: right; font-weight: 600; color: #1976d2;">$${(sale.total_amount || 0).toFixed(2)}</td>
+                <td>#${String(sale.id).padStart(6, '0')}</td>
+                <td style="color: var(--text-1); font-weight: 500;">${sale.customer_name}</td>
+                <td style="font-size: 0.85rem;">${formattedDate} ${formattedTime}</td>
+                <td style="font-size: 0.85rem; text-align: center;">${sale.item_count} producto${sale.item_count !== 1 ? 's' : ''}</td>
+                <td style="text-align: right; font-weight: 600; color: var(--text-1); font-family: var(--mono);">$${(sale.total_amount || 0).toFixed(2)}</td>
                 <td style="text-align: center;">
-                    <button onclick="viewSaleTicket(${sale.id})" 
-                            style="background: #1976d2; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: background 0.3s;"
-                            onmouseover="this.style.background='#1565c0'" 
-                            onmouseout="this.style.background='#1976d2'">
-                        👁️ Ver
-                    </button>
+                    <button class="btn btn-view" onclick="viewSaleTicket(${sale.id})">Ver</button>
                 </td>
             </tr>
         `;
@@ -919,14 +949,16 @@ function updateBoxStatusUI(boxData) {
     const toggleBtn = document.getElementById('box-toggle-btn');
     
     if (boxData && boxData.status === 'open') {
-        statusIndicator.textContent = '✓ Caja Abierta';
-        statusIndicator.style.color = '#4caf50';
+        statusIndicator.textContent = 'Caja Abierta';
+        statusIndicator.className = 'box-status-value open';
+        statusIndicator.style.color = '#059669';
         toggleBtn.textContent = 'Desactivar Caja Diaria';
         toggleBtn.className = 'btn btn-danger';
         toggleBtn.onclick = function() { closeBoxModal(); };
     } else {
-        statusIndicator.textContent = '✗ Caja Cerrada';
-        statusIndicator.style.color = '#d32f2f';
+        statusIndicator.textContent = 'Caja Cerrada';
+        statusIndicator.className = 'box-status-value';
+        statusIndicator.style.color = '#dc2626';
         toggleBtn.textContent = 'Activar Caja Diaria';
         toggleBtn.className = 'btn btn-success';
         toggleBtn.onclick = function() { openBoxModal(); };

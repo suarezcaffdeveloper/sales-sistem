@@ -22,14 +22,14 @@ function displayUsername() {
     const username = getUsername();
     const usernameDisplay = document.getElementById('username-display');
     if (usernameDisplay && username) {
-        usernameDisplay.textContent = `👤 ${username}`;
+        usernameDisplay.textContent = username;
     }
 }
 
 function setupEventListeners() {
     saveSupplierBtn.addEventListener('click', saveSupplier);
     cancelSupplierBtn.addEventListener('click', cancelEdit);
-    
+
     // Filtro de búsqueda
     const filterInput = document.getElementById('filter-suppliers');
     if (filterInput) {
@@ -38,6 +38,29 @@ function setupEventListeners() {
             filterSuppliers(searchTerm);
         });
     }
+
+    document.getElementById('confirm-cancel-btn')?.addEventListener('click', closeConfirmModal);
+    document.getElementById('confirm-accept-btn')?.addEventListener('click', () => {
+        const callback = confirmActionCallback;
+        closeConfirmModal();
+        if (callback) callback();
+    });
+}
+
+// ========== MODAL DE CONFIRMACIÓN (reemplaza confirm() nativo) ==========
+
+let confirmActionCallback = null;
+
+function showConfirm(message, onConfirm, acceptLabel = 'Confirmar') {
+    document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-accept-btn').textContent = acceptLabel;
+    confirmActionCallback = onConfirm;
+    document.getElementById('confirm-modal').classList.remove('hidden');
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    confirmActionCallback = null;
 }
 
 // CARGAR PROVEEDORES
@@ -51,7 +74,7 @@ async function loadSuppliers() {
         renderSuppliers();
     } catch (error) {
         console.error('Error cargando proveedores:', error);
-        suppliersTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: red;">Error al cargar los proveedores</td></tr>';
+        suppliersTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--danger);">Error al cargar los proveedores</td></tr>';
         showError('Error al cargar los proveedores: ' + error.message);
     }
 }
@@ -73,9 +96,9 @@ function renderSuppliers() {
             <td>${supplier.email}</td>
             <td>${supplier.phone}</td>
             <td>${supplier.address}</td>
-            <td>
-                <button class="btn-danger" onclick="editSupplier(${supplier.id})">✏️ Editar</button>
-                <button class="btn-danger" onclick="deleteSupplier(${supplier.id})">🗑️ Eliminar</button>
+            <td style="white-space: nowrap;">
+                <button class="btn btn-view" onclick="editSupplier(${supplier.id})" style="margin-right: 0.4rem;">Editar</button>
+                <button class="btn-danger" onclick="deleteSupplier(${supplier.id})">Eliminar</button>
             </td>
         `;
         suppliersTbody.appendChild(tr);
@@ -160,7 +183,7 @@ function editSupplier(id) {
     supplierAddressInput.value = supplier.address;
     editingId = id;
 
-    saveSupplierBtn.textContent = '✏️ Actualizar Proveedor';
+    saveSupplierBtn.textContent = 'Actualizar proveedor';
     cancelSupplierBtn.style.display = 'block';
     supplierNameInput.focus();
 }
@@ -171,25 +194,25 @@ function cancelEdit() {
 }
 
 // ELIMINAR PROVEEDOR
-async function deleteSupplier(id) {
-    if (!confirm('¿Estás seguro de que deseas eliminar este proveedor?')) return;
+function deleteSupplier(id) {
+    showConfirm('¿Estás seguro de que deseas eliminar este proveedor? Esta acción no se puede deshacer.', async () => {
+        try {
+            const response = await fetchWithAuth(`${API_BASE}/suppliers/${id}`, {
+                method: 'DELETE'
+            });
 
-    try {
-        const response = await fetchWithAuth(`${API_BASE}/suppliers/${id}`, {
-            method: 'DELETE'
-        });
+            if (!response.ok) {
+                const errorData = await response.json();
+                showError(errorData.detail || 'Error al eliminar el proveedor');
+                return;
+            }
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            showError(errorData.detail || 'Error al eliminar el proveedor');
-            return;
+            loadSuppliers();
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Error de conexión: ' + error.message);
         }
-
-        loadSuppliers();
-    } catch (error) {
-        console.error('Error:', error);
-        showError('Error de conexión: ' + error.message);
-    }
+    }, 'Eliminar');
 }
 
 // LIMPIAR FORMULARIO
@@ -199,7 +222,7 @@ function clearForm() {
     supplierPhoneInput.value = '';
     supplierAddressInput.value = '';
     editingId = null;
-    saveSupplierBtn.textContent = '💾 Guardar Proveedor';
+    saveSupplierBtn.textContent = 'Guardar proveedor';
     cancelSupplierBtn.style.display = 'none';
 }
 
@@ -235,7 +258,7 @@ function filterSuppliers(searchTerm) {
     if (!visibleRows && searchTerm !== '') {
         const tr = document.createElement('tr');
         tr.className = 'no-results-row';
-        tr.innerHTML = '<td colspan="6" style="text-align: center; padding: 2rem; color: #999;">No se encontraron proveedores con "' + searchTerm.toUpperCase() + '"</td>';
+        tr.innerHTML = '<td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-3);">No se encontraron proveedores con "' + searchTerm.toUpperCase() + '"</td>';
         suppliersTbody.appendChild(tr);
     }
 }
