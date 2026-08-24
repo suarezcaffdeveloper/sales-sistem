@@ -10,7 +10,7 @@
     <script src="/js/checkAuth.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
-<body>
+<body data-page="sales">
 
 <nav class="navbar">
     <div class="nav-container">
@@ -29,6 +29,7 @@
             <li><a href="/productos.html" class="nav-link" data-page="products"><span>Productos</span></a></li>
             <li><a href="/clientes.html" class="nav-link" data-page="customers"><span>Clientes</span></a></li>
             <li><a href="/proveedores.html" class="nav-link" data-page="suppliers"><span>Proveedores</span></a></li>
+            <li><a href="/usuarios.html" class="nav-link" data-page="users"><span>Usuarios</span></a></li>
             <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid var(--border); padding-left: 1rem;">
                 <span id="username-display" style="color: var(--text-2); font-size: 0.875rem;"></span>
                 <button onclick="logout()" class="btn btn-secondary" style="padding: 0.45rem 0.875rem; font-size: 0.875rem;">Salir</button>
@@ -275,6 +276,25 @@
     </div>
 </div>
 
+<!-- Modal Anular Venta -->
+<div id="cancel-sale-modal" class="modal hidden">
+    <div class="modal-content" style="text-align: left;">
+        <div class="modal-icon danger" style="margin: 0 auto 1rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <h3 style="text-align: center;">Anular venta</h3>
+        <p style="text-align: center;" id="cancel-sale-message">Esta acción repone el stock de los productos y anula la venta. No se puede deshacer.</p>
+        <div class="form-group">
+            <label for="cancel-sale-reason">Motivo (opcional)</label>
+            <textarea id="cancel-sale-reason" rows="2" placeholder="Ej: el cliente devolvió el producto"></textarea>
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+            <button id="cancel-sale-close-btn" class="btn btn-secondary" style="flex: 1; margin: 0;">Cerrar</button>
+            <button id="cancel-sale-confirm-btn" class="btn btn-danger-solid" style="flex: 1; margin: 0;">Anular venta</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Ticket/Factura -->
 <div id="ticket-modal" class="modal hidden">
     <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; text-align: left;">
@@ -294,6 +314,10 @@
             <button onclick="downloadTicketPDF()" class="btn btn-success">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>
                 Descargar PDF
+            </button>
+            <button onclick="continueAfterSale()" class="btn btn-primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                Continuar
             </button>
         </div>
     </div>

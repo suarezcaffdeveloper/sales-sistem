@@ -2,17 +2,12 @@
 Generador de reportes en Excel y PDF
 """
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from datetime import datetime, timedelta
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.product import Product
 from app.models.daily_box import DailyBox
-from app.services.profit_calculator import (
-    calculate_period_stats,
-    get_top_products_profit,
-    get_product_average_cost
-)
 import io
 
 try:
@@ -34,7 +29,90 @@ except ImportError:
     REPORTLAB_AVAILABLE = False
 
 
-def generate_sales_excel(db: Session, start_date: datetime = None, end_date: datetime = None):
+def _get_period_sales(db: Session, company_id: int, start_date: datetime, end_date: datetime):
+    """
+    Trae las ventas de una compañía en un rango de fechas, con items y
+    producto precargados. No incluye ventas anuladas: mismo criterio que
+    usa el resto del sistema (dashboard, caja diaria) para no contar como
+    ingreso/ganancia algo que se revirtió.
+    """
+    return db.query(Sale).filter(
+        Sale.company_id == company_id,
+        Sale.created_at >= start_date,
+        Sale.created_at <= end_date,
+        Sale.cancelled_at.is_(None)
+    ).options(
+        joinedload(Sale.items).joinedload(SaleItem.product),
+        joinedload(Sale.customer)
+    ).order_by(Sale.created_at.desc()).all()
+
+
+def _summarize_sales(sales: list) -> dict:
+    """
+    Calcula los totales de un período a partir de una lista de ventas ya
+    filtrada (activas, de una compañía). Usa el mismo criterio de ganancia
+    (precio - cost_price actual del producto) que ya usa el dashboard, para
+    que estos reportes no muestren números distintos a los que el usuario
+    ya ve en pantalla.
+    """
+    total_revenue = 0.0
+    total_cost = 0.0
+    paid_count = 0
+    total_debt = 0.0
+
+    for sale in sales:
+        total_debt += float(sale.debt_amount or 0)
+        if sale.status == "pagado":
+            paid_count += 1
+        for item in sale.items:
+            product = item.product
+            if not product:
+                continue
+            qty = item.quantity or 0
+            total_revenue += (product.price or 0) * qty
+            total_cost += (product.cost_price or 0) * qty
+
+    total_profit = total_revenue - total_cost
+    profit_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+    sales_count = len(sales)
+
+    return {
+        "total_sales": sales_count,
+        "paid_sales": paid_count,
+        "pending_sales": sales_count - paid_count,
+        "total_sales_amount": total_revenue,
+        "total_cost_amount": total_cost,
+        "total_profit": total_profit,
+        "profit_margin": profit_margin,
+        "total_debt": total_debt,
+        "average_profit_per_sale": (total_profit / sales_count) if sales_count > 0 else 0
+    }
+
+
+def _top_products_for_period(sales: list, limit: int = 10) -> list:
+    """Productos con mayor ganancia dentro de una lista de ventas ya filtrada."""
+    products = {}
+    for sale in sales:
+        for item in sale.items:
+            product = item.product
+            if not product:
+                continue
+            qty = item.quantity or 0
+            price = product.price or 0
+            cost = product.cost_price or 0
+            entry = products.setdefault(product.id, {
+                "product_name": product.name,
+                "total_quantity_sold": 0,
+                "total_profit": 0.0,
+                "sale_price": price
+            })
+            entry["total_quantity_sold"] += qty
+            entry["total_profit"] += (price - cost) * qty
+
+    return sorted(products.values(), key=lambda p: p["total_profit"], reverse=True)[:limit]
+
+
+def generate_sales_excel(db: Session, company_id: int, start_date: datetime = None, end_date: datetime = None):
     """
     Genera un reporte en Excel con todas las ventas
     """
@@ -45,61 +123,52 @@ def generate_sales_excel(db: Session, start_date: datetime = None, end_date: dat
         start_date = datetime.utcnow() - timedelta(days=30)
     if not end_date:
         end_date = datetime.utcnow()
-    
-    # Obtener ventas
+
+    # Ventas de la compañía en el período. A diferencia del resto de la
+    # tabla, acá SÍ se listan las ventas anuladas (para que el listado sirva
+    # de auditoría), marcadas con estado "anulada"; el resumen de abajo no
+    # las cuenta.
     sales = db.query(Sale).filter(
+        Sale.company_id == company_id,
         Sale.created_at >= start_date,
         Sale.created_at <= end_date
+    ).options(
+        joinedload(Sale.items).joinedload(SaleItem.product),
+        joinedload(Sale.customer)
     ).order_by(Sale.created_at.desc()).all()
-    
-    # Preparar datos
-    data = []
-    for sale in sales:
-        data.append({
-            "ID Venta": sale.id,
-            "Cliente": sale.customer.name,
-            "Fecha": sale.created_at.strftime("%Y-%m-%d %H:%M"),
-            "Total": sale.total_amount,
-            "Pagado": sale.paid_amount,
-            "Deuda": sale.debt_amount,
-            "Estado": sale.status,
-            "Productos": len(sale.items)
-        })
-    
-    # Crear DataFrame
-    df = pd.DataFrame(data)
-    
+
     # Crear workbook con estilos
     wb = Workbook()
     ws = wb.active
     ws.title = "Ventas"
-    
+
     # Headers
     headers = ["ID Venta", "Cliente", "Fecha", "Total", "Pagado", "Deuda", "Estado", "Productos"]
     ws.append(headers)
-    
+
     # Estilos
     header_fill = PatternFill(start_color="1976D2", end_color="1976D2", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF")
-    
+
     for cell in ws[1]:
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
-    
+
     # Datos
-    for _, row in df.iterrows():
+    for sale in sales:
+        estado = "anulada" if sale.cancelled_at else (sale.status or "pendiente")
         ws.append([
-            row["ID Venta"],
-            row["Cliente"],
-            row["Fecha"],
-            f"${row['Total']:.2f}",
-            f"${row['Pagado']:.2f}",
-            f"${row['Deuda']:.2f}",
-            row["Estado"],
-            row["Productos"]
+            sale.id,
+            sale.customer.name if sale.customer else "Desconocido",
+            sale.created_at.strftime("%Y-%m-%d %H:%M"),
+            f"${sale.total_amount:.2f}",
+            f"${sale.paid_amount:.2f}",
+            f"${sale.debt_amount:.2f}",
+            estado,
+            len(sale.items)
         ])
-    
+
     # Ajustar ancho de columnas
     ws.column_dimensions['A'].width = 10
     ws.column_dimensions['B'].width = 20
@@ -109,10 +178,11 @@ def generate_sales_excel(db: Session, start_date: datetime = None, end_date: dat
     ws.column_dimensions['F'].width = 12
     ws.column_dimensions['G'].width = 12
     ws.column_dimensions['H'].width = 12
-    
-    # Agregar resumen
-    stats = calculate_period_stats(db, start_date, end_date)
-    
+
+    # Agregar resumen (solo ventas activas, no anuladas)
+    active_sales = [s for s in sales if not s.cancelled_at]
+    stats = _summarize_sales(active_sales)
+
     ws.append([])
     ws.append(["RESUMEN"])
     ws.append(["Total Ventas", stats["total_sales"]])
@@ -132,31 +202,28 @@ def generate_sales_excel(db: Session, start_date: datetime = None, end_date: dat
     return output
 
 
-def generate_daily_report_pdf(db: Session, box_date: datetime = None):
+def generate_daily_report_pdf(db: Session, company_id: int, box_date: datetime = None):
     """
     Genera un reporte PDF del día (caja diaria)
     """
     if not REPORTLAB_AVAILABLE:
         raise Exception("reportlab no está instalado")
-    
+
     if not box_date:
         box_date = datetime.utcnow().date()
-    
+
     # Obtener caja del día
     daily_box = db.query(DailyBox).filter(
-        DailyBox.date == box_date
+        DailyBox.date == box_date.isoformat(),
+        DailyBox.company_id == company_id
     ).first()
-    
+
     # Obtener ventas del día
     start_of_day = datetime.combine(box_date, datetime.min.time())
     end_of_day = datetime.combine(box_date, datetime.max.time())
-    
-    sales = db.query(Sale).filter(
-        Sale.created_at >= start_of_day,
-        Sale.created_at <= end_of_day
-    ).all()
-    
-    stats = calculate_period_stats(db, start_of_day, end_of_day)
+
+    sales = _get_period_sales(db, company_id, start_of_day, end_of_day)
+    stats = _summarize_sales(sales)
     
     # Crear PDF
     buffer = io.BytesIO()
@@ -192,8 +259,10 @@ def generate_daily_report_pdf(db: Session, box_date: datetime = None):
     ]
     
     if daily_box:
-        summary_data.append(["Efectivo en Caja", f"${daily_box.cash_amount:.2f}"])
-    
+        summary_data.append(["Apertura de Caja", f"${(daily_box.opening_balance or 0):.2f}"])
+        if daily_box.closing_balance is not None:
+            summary_data.append(["Cierre de Caja", f"${daily_box.closing_balance:.2f}"])
+
     table = Table(summary_data, colWidths=[3*inch, 2*inch])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1976D2')),
@@ -205,14 +274,14 @@ def generate_daily_report_pdf(db: Session, box_date: datetime = None):
         ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
         ('GRID', (0, 0), (-1, -1), 1, colors.black)
     ]))
-    
+
     elements.append(table)
     elements.append(Spacer(1, 0.5*inch))
-    
+
     # Productos más vendidos
     elements.append(Paragraph("Productos Más Vendidos", styles['Heading2']))
-    
-    top_products = get_top_products_profit(db, start_of_day, end_of_day, limit=5)
+
+    top_products = _top_products_for_period(sales, limit=5)
     
     if top_products:
         products_data = [["PRODUCTO", "CANTIDAD", "GANANCIA"]]
@@ -240,29 +309,30 @@ def generate_daily_report_pdf(db: Session, box_date: datetime = None):
     return buffer
 
 
-def generate_weekly_report_pdf(db: Session):
+def generate_weekly_report_pdf(db: Session, company_id: int):
     """Reporte semanal"""
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=7)
-    
-    return _generate_period_report_pdf(db, start_date, end_date, "SEMANAL")
+
+    return _generate_period_report_pdf(db, company_id, start_date, end_date, "SEMANAL")
 
 
-def generate_monthly_report_pdf(db: Session):
+def generate_monthly_report_pdf(db: Session, company_id: int):
     """Reporte mensual"""
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=30)
-    
-    return _generate_period_report_pdf(db, start_date, end_date, "MENSUAL")
+
+    return _generate_period_report_pdf(db, company_id, start_date, end_date, "MENSUAL")
 
 
-def _generate_period_report_pdf(db: Session, start_date: datetime, end_date: datetime, period_type: str):
+def _generate_period_report_pdf(db: Session, company_id: int, start_date: datetime, end_date: datetime, period_type: str):
     """Genera PDF para un período"""
     if not REPORTLAB_AVAILABLE:
         raise Exception("reportlab no está instalado")
-    
-    stats = calculate_period_stats(db, start_date, end_date)
-    top_products = get_top_products_profit(db, start_date, end_date, limit=10)
+
+    sales = _get_period_sales(db, company_id, start_date, end_date)
+    stats = _summarize_sales(sales)
+    top_products = _top_products_for_period(sales, limit=10)
     
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -376,11 +446,11 @@ def generate_daily_box_excel(db: Session, box_date_str: str, company_id: int):
 
     if box:
         sales = db.query(Sale).filter(
-            and_(Sale.daily_box_id == box.id, Sale.company_id == company_id)
+            and_(Sale.daily_box_id == box.id, Sale.company_id == company_id, Sale.cancelled_at.is_(None))
         ).options(joinedload(Sale.items).joinedload(SaleItem.product), joinedload(Sale.customer)).all()
     else:
         sales = db.query(Sale).filter(
-            and_(Sale.created_at >= date_start, Sale.created_at <= date_end, Sale.company_id == company_id)
+            and_(Sale.created_at >= date_start, Sale.created_at <= date_end, Sale.company_id == company_id, Sale.cancelled_at.is_(None))
         ).options(joinedload(Sale.items).joinedload(SaleItem.product), joinedload(Sale.customer)).all()
 
     wb = Workbook()
@@ -590,11 +660,11 @@ def generate_daily_box_pdf(db: Session, box_date_str: str, company_id: int):
 
     if box:
         sales = db.query(Sale).filter(
-            and_(Sale.daily_box_id == box.id, Sale.company_id == company_id)
+            and_(Sale.daily_box_id == box.id, Sale.company_id == company_id, Sale.cancelled_at.is_(None))
         ).options(joinedload(Sale.items).joinedload(SaleItem.product), joinedload(Sale.customer)).all()
     else:
         sales = db.query(Sale).filter(
-            and_(Sale.created_at >= date_start, Sale.created_at <= date_end, Sale.company_id == company_id)
+            and_(Sale.created_at >= date_start, Sale.created_at <= date_end, Sale.company_id == company_id, Sale.cancelled_at.is_(None))
         ).options(joinedload(Sale.items).joinedload(SaleItem.product), joinedload(Sale.customer)).all()
 
     total_sales_amt = sum(s.total_amount or 0 for s in sales)

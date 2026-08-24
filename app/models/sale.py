@@ -13,6 +13,8 @@ class Sale(Base):
     debt_amount = Column(Float, default=0)  # Monto pendiente
     status = Column(String, default="pendiente")  # "pagado", "parcial", "pendiente"
     created_at = Column(DateTime, default=datetime.utcnow)
+    cancelled_at = Column(DateTime, nullable=True)  # Si no es None, la venta fue anulada
+    cancel_reason = Column(String, nullable=True)
 
     customer_id = Column(Integer, ForeignKey("customers.id"))
     daily_box_id = Column(Integer, ForeignKey("daily_boxes.id"), nullable=True)

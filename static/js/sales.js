@@ -107,6 +107,10 @@ function setupEventListeners() {
         closeConfirmModal();
         if (callback) callback();
     });
+
+    // Modal de anular venta
+    document.getElementById('cancel-sale-close-btn')?.addEventListener('click', closeCancelSaleModal);
+    document.getElementById('cancel-sale-confirm-btn')?.addEventListener('click', submitCancelSale);
 }
 
 // CARGAR CLIENTES
@@ -413,9 +417,10 @@ async function completeSale() {
 
         // Obtener detalles completos de la venta para el ticket (ya con el pago reflejado)
         await fetchAndShowTicket(saleId);
-        
+
         resetSaleForm();
         loadProducts(); // Recargar productos para actualizar stock
+        loadSalesHistory(); // Actualizar la tabla de ventas sin recargar la página
 
     } catch (error) {
         console.error('Error:', error);
@@ -504,6 +509,12 @@ function closeTicketModal() {
     document.getElementById('ticket-modal').classList.add('hidden');
 }
 
+// CONTINUAR DESPUÉS DE COMPLETAR LA VENTA (cierra el ticket y deja todo listo para la siguiente venta)
+function continueAfterSale() {
+    closeTicketModal();
+    customerSearch.focus();
+}
+
 // GENERAR HTML DEL TICKET
 function generateTicketHTML(saleDetails) {
     console.log('🎫 Generando ticket para venta:', saleDetails);
@@ -538,7 +549,15 @@ function generateTicketHTML(saleDetails) {
         itemsHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">Sin detalles de productos</td></tr>';
     }
     
+    const cancelledBanner = saleDetails.cancelled ? `
+        <div style="text-align: center; margin-bottom: 1rem; padding: 0.6rem; background: rgba(220,38,38,0.12); border: 1px solid #dc2626; border-radius: 4px;">
+            <p style="margin: 0; color: #dc2626; font-weight: 700; letter-spacing: 0.05em;">VENTA ANULADA</p>
+            ${saleDetails.cancel_reason ? `<p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: #dc2626;">Motivo: ${saleDetails.cancel_reason}</p>` : ''}
+        </div>
+    ` : '';
+
     return `
+        ${cancelledBanner}
         <div style="text-align: center; padding-bottom: 1rem; border-bottom: 2px dashed #333;">
             <h2 style="margin: 0 0 0.5rem 0; font-size: 1.8rem;">CASTZONE</h2>
             <p style="margin: 0.25rem 0;">Tienda de productos</p>
@@ -830,16 +849,25 @@ function renderSalesHistory(sales) {
         const date = new Date(sale.created_at);
         const formattedDate = date.toLocaleDateString('es-ES');
         const formattedTime = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        const isCancelled = Boolean(sale.cancelled);
+        const rowStyle = isCancelled ? ' style="opacity: 0.55;"' : '';
+
+        const isAdmin = localStorage.getItem('user_role') !== 'cajero';
+        const actionButtons = isCancelled
+            ? `<button class="btn btn-view" onclick="viewSaleTicket(${sale.id})">Ver</button>
+               <span style="display: inline-block; margin-left: 0.5rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: rgba(220,38,38,0.15); color: #dc2626; font-size: 0.75rem; font-weight: 700;">ANULADA</span>`
+            : `<button class="btn btn-view" onclick="viewSaleTicket(${sale.id})">Ver</button>
+               ${isAdmin ? `<button class="btn-danger" onclick="openCancelSaleModal(${sale.id})" style="margin-left: 0.4rem;">Anular</button>` : ''}`;
 
         tableHTML += `
-            <tr>
+            <tr${rowStyle}>
                 <td>#${String(sale.id).padStart(6, '0')}</td>
-                <td style="color: var(--text-1); font-weight: 500;">${sale.customer_name}</td>
+                <td style="color: var(--text-1); font-weight: 500; ${isCancelled ? 'text-decoration: line-through;' : ''}">${sale.customer_name}</td>
                 <td style="font-size: 0.85rem;">${formattedDate} ${formattedTime}</td>
                 <td style="font-size: 0.85rem; text-align: center;">${sale.item_count} producto${sale.item_count !== 1 ? 's' : ''}</td>
-                <td style="text-align: right; font-weight: 600; color: var(--text-1); font-family: var(--mono);">$${(sale.total_amount || 0).toFixed(2)}</td>
-                <td style="text-align: center;">
-                    <button class="btn btn-view" onclick="viewSaleTicket(${sale.id})">Ver</button>
+                <td style="text-align: right; font-weight: 600; color: var(--text-1); font-family: var(--mono); ${isCancelled ? 'text-decoration: line-through;' : ''}">$${(sale.total_amount || 0).toFixed(2)}</td>
+                <td style="text-align: center; white-space: nowrap;">
+                    ${actionButtons}
                 </td>
             </tr>
         `;
@@ -870,6 +898,64 @@ async function viewSaleTicket(saleId) {
     } catch (error) {
         console.error('Error:', error);
         showError('Error al cargar el ticket');
+    } finally {
+        showLoader(false);
+    }
+}
+
+// ========== ANULAR VENTA ==========
+
+let saleToCancelId = null;
+
+// ABRIR MODAL DE ANULAR VENTA
+function openCancelSaleModal(saleId) {
+    saleToCancelId = saleId;
+    document.getElementById('cancel-sale-reason').value = '';
+    document.getElementById('cancel-sale-modal').classList.remove('hidden');
+}
+
+// CERRAR MODAL DE ANULAR VENTA
+function closeCancelSaleModal() {
+    document.getElementById('cancel-sale-modal').classList.add('hidden');
+    saleToCancelId = null;
+}
+
+// CONFIRMAR ANULACIÓN DE VENTA
+async function submitCancelSale() {
+    if (!saleToCancelId) return;
+
+    const reason = document.getElementById('cancel-sale-reason').value.trim();
+    const saleId = saleToCancelId;
+
+    try {
+        showLoader(true);
+        const response = await fetchWithAuth(`${API_BASE}/sales/${saleId}/cancel`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: reason || null })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            showError(data.detail || 'Error al anular la venta');
+            return;
+        }
+
+        closeCancelSaleModal();
+
+        const refund = data.refund_due || 0;
+        const refundMsg = refund > 0
+            ? ` Recordá reembolsar $${refund.toFixed(2)} al cliente.`
+            : '';
+        showSuccess(`✓ Venta #${String(saleId).padStart(6, '0')} anulada. Se repuso el stock.${refundMsg}`);
+
+        loadSalesHistory();
+        loadProducts();
+        checkDailyBoxStatus();
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Error de conexión al anular la venta');
     } finally {
         showLoader(false);
     }

@@ -114,17 +114,18 @@ async function handleRegister(e) {
             return;
         }
 
-        // Mostrar mensaje de éxito
-        showSuccess('¡Cuenta creada exitosamente! Ahora inicia sesión.', registerError);
         registerForm.reset();
+        hideRegisterForm();
 
-        // Limpiar y cerrar modal después de 1.5 segundos
-        setTimeout(() => {
-            hideRegisterForm();
-            // Llenar el formulario de login para que sea más fácil
+        if (data.employee_username && data.employee_password) {
+            // Se creó una empresa nueva: mostrar las credenciales del
+            // empleado una única vez antes de mandar a loguearse.
+            showEmployeeCredentials(data.username, data.employee_username, data.employee_password);
+        } else {
+            showSuccess('¡Cuenta creada exitosamente! Ahora inicia sesión.', registerError);
             document.getElementById('username').value = username;
             document.getElementById('password').focus();
-        }, 1500);
+        }
 
     } catch (error) {
         console.error('Error:', error);
@@ -166,6 +167,20 @@ function hideRegisterForm() {
     registerModal.style.display = 'none';
     registerForm.reset();
     registerError.classList.remove('show', 'login-success');
+}
+
+function showEmployeeCredentials(adminUsername, employeeUsername, employeePassword) {
+    document.getElementById('cred-admin-username').textContent = adminUsername;
+    document.getElementById('cred-employee-username').textContent = employeeUsername;
+    document.getElementById('cred-employee-password').textContent = employeePassword;
+    document.getElementById('employee-credentials-modal').classList.remove('hidden');
+}
+
+function acceptEmployeeCredentials() {
+    const adminUsername = document.getElementById('cred-admin-username').textContent;
+    document.getElementById('employee-credentials-modal').classList.add('hidden');
+    document.getElementById('username').value = adminUsername;
+    document.getElementById('password').focus();
 }
 
 // Cerrar modal si se clica fuera

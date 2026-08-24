@@ -9,3 +9,4 @@ from .user import User
 from .daily_box import DailyBox
 from .purchase import Purchase
 from .purchase_item import PurchaseItem
+from .supplier_payment import SupplierPayment

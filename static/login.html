@@ -224,6 +224,25 @@
     </div>
 </div>
 
+<!-- Modal con las credenciales del empleado, se muestra una sola vez tras crear la empresa -->
+<div id="employee-credentials-modal" class="modal hidden">
+    <div class="modal-content" style="text-align: left;">
+        <div class="modal-icon success" style="margin: 0 auto 1rem;">✓</div>
+        <h3 style="text-align: center;">¡Empresa creada!</h3>
+        <p style="text-align: center; color: var(--text-3); font-size: 0.875rem;">
+            Se creó tu acceso de administrador y, además, un acceso para tu empleado de venta.
+            Guardá esta contraseña ahora: no se va a volver a mostrar (podés resetearla luego desde "Usuarios").
+        </p>
+        <div style="background: var(--navy-3); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin: 1rem 0; font-family: var(--mono);">
+            <p style="margin: 0.4rem 0;"><strong>Tu usuario (admin):</strong> <span id="cred-admin-username"></span></p>
+            <div style="border-top: 1px dashed var(--border); margin: 0.75rem 0;"></div>
+            <p style="margin: 0.4rem 0;"><strong>Usuario del empleado:</strong> <span id="cred-employee-username"></span></p>
+            <p style="margin: 0.4rem 0;"><strong>Contraseña del empleado:</strong> <span id="cred-employee-password"></span></p>
+        </div>
+        <button class="btn btn-primary" style="width: 100%;" onclick="acceptEmployeeCredentials()">Ya la guardé, ir a iniciar sesión</button>
+    </div>
+</div>
+
 <script src="/js/auth.js"></script>
 <script>
 function loginDemo() {

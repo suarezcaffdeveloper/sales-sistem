@@ -19,7 +19,10 @@ def create_payment(db: Session, payment_data: PaymentCreate, company_id: int) ->
     
     if not sale:
         raise Exception(f"Venta {payment_data.sale_id} no existe")
-    
+
+    if sale.cancelled_at is not None:
+        raise Exception("No se puede registrar un pago para una venta anulada")
+
     print(f"   📊 Venta encontrada: Total ${sale.total_amount}, Pagado ${sale.paid_amount}, Deuda ${sale.debt_amount}")
     
     # Validar que el pago no exceda la deuda

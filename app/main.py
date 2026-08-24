@@ -1,4 +1,15 @@
 import os
+import sys
+
+# En Windows la consola suele usar cp1252, que no puede codificar los emojis
+# que usan los print() de depuración del backend (ver app/crud/sale.py, etc.).
+# Sin esto, cualquier print() con un emoji lanza UnicodeEncodeError y esa
+# excepción termina reportándose como un error 400/500 genérico al frontend,
+# aunque la operación (venta, compra, etc.) sea válida.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from fastapi import FastAPI
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,7 +18,7 @@ from app.api.routes import protected_router, public_router
 from app.db.database import engine, Base, migrate_add_daily_box_id_if_missing
 from app.db.migrations import run_all_migrations
 from pathlib import Path
-from app.models import Product, Customer, Supplier, Sale, SaleItem, User, DailyBox, Purchase, PurchaseItem, Payment
+from app.models import Product, Customer, Supplier, Sale, SaleItem, User, DailyBox, Purchase, PurchaseItem, Payment, SupplierPayment
 from seed_demo import seed_demo
 
 # Cargar variables de entorno desde .env si existe
@@ -73,10 +84,6 @@ run_all_migrations()
 app.include_router(public_router, prefix="/api")
 # Router protegido (requiere JWT)
 app.include_router(protected_router, prefix="/api")
-
-# Incluir router de analytics (métricas pandas)
-from app.analytics.routes import router as analytics_router
-app.include_router(analytics_router, prefix="/api/analytics")
 
 @app.get("/api")
 def api_root():

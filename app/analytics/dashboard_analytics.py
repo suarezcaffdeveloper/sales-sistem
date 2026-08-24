@@ -28,6 +28,7 @@ def get_dashboard_stats_pandas(db, company_id):
     from app.crud.product import get_products
     from app.crud.customer import get_customers
     from app.crud.payment import get_all_payments
+    from app.models.sale import Sale
     from app.models.sale_item import SaleItem
     from app.models.product import Product
     from sqlalchemy.orm import joinedload
@@ -49,8 +50,15 @@ def get_dashboard_stats_pandas(db, company_id):
         for p in products if p.stock is not None and p.stock < 3
     ]
 
-    # Ítems de venta (productos vendidos)
-    sale_items = db.query(SaleItem).join(Product).filter(Product.company_id == company_id).options(joinedload(SaleItem.product)).all()
+    # Ítems de venta (productos vendidos), excluyendo ventas anuladas
+    sale_items = (
+        db.query(SaleItem)
+        .join(Product)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(Product.company_id == company_id, Sale.cancelled_at.is_(None))
+        .options(joinedload(SaleItem.product))
+        .all()
+    )
     items_data = []
     for item in sale_items:
         items_data.append({
@@ -119,10 +127,12 @@ def get_dashboard_stats_pandas(db, company_id):
         payment_method_total = 0.0
 
     # Facturas adeudadas (debt_amount > 0, incluye facturas parcialmente pagadas)
+    # y total de ventas: ambas excluyen ventas anuladas
     from app.crud.sale import get_all_sales
     sales = get_all_sales(db, company_id)
+    active_sales = [s for s in sales if not s.get("cancelled")]
     pending_debts = []
-    for sale in sales:
+    for sale in active_sales:
         debt = sale.get("debt_amount", 0)
         total = sale.get("total_amount", 0)
         paid = sale.get("paid_amount", 0)
@@ -138,11 +148,11 @@ def get_dashboard_stats_pandas(db, company_id):
             })
 
     # Total ventas
-    total_sales = float(sum([s.get("total_amount", 0) for s in sales])) if sales else 0.0
+    total_sales = float(sum([s.get("total_amount", 0) for s in active_sales])) if active_sales else 0.0
 
     return {
         "total_sales": total_sales,
-        "sales_count": len(sales),
+        "sales_count": len(active_sales),
         "total_profit": total_profit,
         "top_products": top_products,
         "bottom_products": bottom_products,
@@ -158,6 +168,7 @@ def get_dashboard_stats_pandas(db, company_id):
 
 def get_top_products(db, company_id: int, limit: int = 5):
     """Obtiene los productos más vendidos por cantidad."""
+    from app.models.sale import Sale
     from app.models.sale_item import SaleItem
     from app.models.product import Product
     from sqlalchemy.orm import joinedload
@@ -166,7 +177,8 @@ def get_top_products(db, company_id: int, limit: int = 5):
     sale_items = (
         db.query(SaleItem)
         .join(Product)
-        .filter(Product.company_id == company_id)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(Product.company_id == company_id, Sale.cancelled_at.is_(None))
         .options(joinedload(SaleItem.product))
         .all()
     )
@@ -217,6 +229,7 @@ def get_top_products(db, company_id: int, limit: int = 5):
 
 def get_bottom_products(db, company_id: int, limit: int = 5):
     """Obtiene los productos menos vendidos por cantidad."""
+    from app.models.sale import Sale
     from app.models.sale_item import SaleItem
     from app.models.product import Product
     from sqlalchemy.orm import joinedload
@@ -225,7 +238,8 @@ def get_bottom_products(db, company_id: int, limit: int = 5):
     sale_items = (
         db.query(SaleItem)
         .join(Product)
-        .filter(Product.company_id == company_id)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(Product.company_id == company_id, Sale.cancelled_at.is_(None))
         .options(joinedload(SaleItem.product))
         .all()
     )
@@ -472,6 +486,7 @@ def get_pending_debts_pandas(
     
 def get_total_profit_pandas_fast(db, company_id: int):
     """Calcula la ganancia total usando ORM + pandas."""
+    from app.models.sale import Sale
     from app.models.sale_item import SaleItem
     from app.models.product import Product
     from sqlalchemy.orm import joinedload
@@ -480,7 +495,8 @@ def get_total_profit_pandas_fast(db, company_id: int):
         sale_items = (
             db.query(SaleItem)
             .join(Product)
-            .filter(Product.company_id == company_id)
+            .join(Sale, Sale.id == SaleItem.sale_id)
+            .filter(Product.company_id == company_id, Sale.cancelled_at.is_(None))
             .options(joinedload(SaleItem.product))
             .all()
         )
@@ -509,13 +525,15 @@ def get_debt_chart_data(db, company_id: int, start_date, end_date, group_by: str
             Sale.company_id == company_id,
             Sale.created_at >= start_date,
             Sale.created_at <= end_date,
-            Sale.debt_amount > 0
+            Sale.debt_amount > 0,
+            Sale.cancelled_at.is_(None)
         ).all()
 
         all_sales = db.query(Sale).filter(
             Sale.company_id == company_id,
             Sale.created_at >= start_date,
-            Sale.created_at <= end_date
+            Sale.created_at <= end_date,
+            Sale.cancelled_at.is_(None)
         ).all()
 
         if not all_sales:
@@ -607,7 +625,8 @@ def get_sales_chart_data(db, company_id: int, start_date, end_date, group_by: st
         sales = db.query(Sale).filter(
             Sale.company_id == company_id,
             Sale.created_at >= start_date,
-            Sale.created_at <= end_date
+            Sale.created_at <= end_date,
+            Sale.cancelled_at.is_(None)
         ).all()
 
         if not sales:
@@ -659,6 +678,7 @@ def get_top_profitable_products(db, company_id: int, limit: int = 5):
     """
     Retorna los productos con mayor ganancia acumulada (precio - costo) * cantidad.
     """
+    from app.models.sale import Sale
     from app.models.sale_item import SaleItem
     from app.models.product import Product
     from sqlalchemy.orm import joinedload
@@ -666,7 +686,8 @@ def get_top_profitable_products(db, company_id: int, limit: int = 5):
         sale_items = (
             db.query(SaleItem)
             .join(Product)
-            .filter(Product.company_id == company_id)
+            .join(Sale, Sale.id == SaleItem.sale_id)
+            .filter(Product.company_id == company_id, Sale.cancelled_at.is_(None))
             .options(joinedload(SaleItem.product))
             .all()
         )
@@ -738,7 +759,7 @@ def get_stale_products(db, company_id: int, days: int = 30):
         last_sales = (
             db.query(SaleItem.product_id, func.max(Sale.created_at).label("last_sold"))
             .join(Sale, Sale.id == SaleItem.sale_id)
-            .filter(Sale.company_id == company_id)
+            .filter(Sale.company_id == company_id, Sale.cancelled_at.is_(None))
             .group_by(SaleItem.product_id)
             .all()
         )
@@ -781,7 +802,7 @@ def get_inactive_customers(db, company_id: int, days: int = 30):
 
         last_purchases = (
             db.query(Sale.customer_id, func.max(Sale.created_at).label("last_purchase"))
-            .filter(Sale.company_id == company_id)
+            .filter(Sale.company_id == company_id, Sale.cancelled_at.is_(None))
             .group_by(Sale.customer_id)
             .all()
         )
@@ -830,7 +851,8 @@ def get_sales_chart_with_growth(db, company_id: int, start_date, end_date, group
             sales = db.query(Sale).filter(
                 Sale.company_id == company_id,
                 Sale.created_at >= s,
-                Sale.created_at <= e
+                Sale.created_at <= e,
+                Sale.cancelled_at.is_(None)
             ).options(joinedload(Sale.items).joinedload(SaleItem.product)).all()
             return sales
 
@@ -954,9 +976,10 @@ def get_business_insights(db, company_id: int):
     try:
         insights = []
 
-        # Cargar ventas con ítems
+        # Cargar ventas con ítems (excluye anuladas)
         sales = db.query(Sale).filter(
-            Sale.company_id == company_id
+            Sale.company_id == company_id,
+            Sale.cancelled_at.is_(None)
         ).options(
             joinedload(Sale.items).joinedload(SaleItem.product),
             joinedload(Sale.customer)

@@ -2,7 +2,7 @@ describe('Productos', () => {
 
   beforeEach(() => {
     cy.login()
-    cy.visit('https://sales-sistem.onrender.com/productos.html')
+    cy.visit('/productos.html')
   })
 
   it('No permite guardar producto vacío', () => {

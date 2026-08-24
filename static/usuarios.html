@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="/css/theme-crisp.css">
     <script src="/js/checkAuth.js"></script>
 </head>
-<body data-page="customers">
+<body data-page="users">
 
 <nav class="navbar">
     <div class="nav-container">
@@ -26,9 +26,9 @@
             <li><a href="/" class="nav-link" data-page="sales"><span>Ventas</span></a></li>
             <li><a href="/compras.html" class="nav-link" data-page="purchases"><span>Compras</span></a></li>
             <li><a href="/productos.html" class="nav-link" data-page="products"><span>Productos</span></a></li>
-            <li><a href="/clientes.html" class="nav-link active" data-page="customers"><span>Clientes</span></a></li>
+            <li><a href="/clientes.html" class="nav-link" data-page="customers"><span>Clientes</span></a></li>
             <li><a href="/proveedores.html" class="nav-link" data-page="suppliers"><span>Proveedores</span></a></li>
-            <li><a href="/usuarios.html" class="nav-link" data-page="users"><span>Usuarios</span></a></li>
+            <li><a href="/usuarios.html" class="nav-link active" data-page="users"><span>Usuarios</span></a></li>
             <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid var(--border); padding-left: 1rem;">
                 <span id="username-display" style="color: var(--text-2); font-size: 0.875rem;"></span>
                 <button onclick="logout()" class="btn btn-secondary" style="padding: 0.45rem 0.875rem; font-size: 0.875rem;">Salir</button>
@@ -41,75 +41,66 @@
 
     <div class="page-header">
         <div>
-            <h2>Clientes</h2>
-            <p>Administrá tu base de clientes</p>
+            <h2>Usuarios</h2>
+            <p>Gestioná los accesos de tu equipo: quién es administrador y quién solo vende</p>
         </div>
     </div>
 
     <div class="content-wrapper" style="grid-template-columns:1fr;">
         <div class="form-section">
-            <h3>Agregar / editar cliente</h3>
+            <h3>Agregar empleado</h3>
 
             <div class="form-group">
-                <label for="customer-name">Nombre completo</label>
-                <input type="text" id="customer-name" placeholder="Ej: Juan Pérez" required>
+                <label for="new-user-username">Usuario</label>
+                <input type="text" id="new-user-username" placeholder="Ej: maria_cajera" autocomplete="off">
             </div>
 
             <div class="form-group">
-                <label for="customer-email">Email</label>
-                <input type="email" id="customer-email" placeholder="juan@ejemplo.com" required>
+                <label for="new-user-password">Contraseña</label>
+                <input type="password" id="new-user-password" placeholder="Mínimo 6 caracteres">
             </div>
 
             <div class="form-group">
-                <label for="customer-phone">Teléfono</label>
-                <input type="tel" id="customer-phone" placeholder="+54 9 341 000 0000" required>
-            </div>
-
-            <div class="form-group">
-                <label for="customer-address">Dirección</label>
-                <input type="text" id="customer-address" placeholder="Calle, número, ciudad">
+                <label for="new-user-role">Rol</label>
+                <select id="new-user-role">
+                    <option value="cajero">Cajero (solo Ventas)</option>
+                    <option value="admin">Administrador (acceso completo)</option>
+                </select>
             </div>
 
             <div class="action-buttons">
-                <button id="save-customer-btn" class="btn btn-success">Guardar cliente</button>
-                <button id="cancel-customer-btn" class="btn btn-secondary" style="display:none;">Cancelar</button>
+                <button id="create-user-btn" class="btn btn-success">Crear usuario</button>
             </div>
         </div>
     </div>
 
     <div class="form-section mt-section">
-        <h3>Listado de clientes</h3>
-        
-        <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center;">
-            <input
-                type="text"
-                id="filter-customers"
-                placeholder="Buscar por nombre, email o teléfono…"
-                autocomplete="off"
-                style="flex: 1; padding: 0.625rem 0.875rem; background: var(--navy-3); border: 1px solid var(--border-2); border-radius: var(--radius); font-size: 0.9rem; font-family: var(--font); color: var(--text-1);"
-            >
-            <button onclick="clearFilterCustomers()" class="btn btn-secondary">Limpiar</button>
-        </div>
-        
+        <h3>Equipo</h3>
         <div class="table-wrapper" style="margin-top:1rem;">
             <table>
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Nombre</th>
-                        <th>Email</th>
-                        <th>Teléfono</th>
-                        <th>Dirección</th>
-                        <th>Acciones</th>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th style="text-align:center;">Acciones</th>
                     </tr>
                 </thead>
-                <tbody id="customers-tbody">
-                    <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3);">Cargando clientes…</td></tr>
+                <tbody id="users-tbody">
+                    <tr><td colspan="3" style="text-align:center;padding:2rem;color:var(--text-3);">Cargando usuarios…</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
+</div>
+
+<div id="success-modal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-icon success">✓</div>
+        <h3 id="success-title">Listo</h3>
+        <p id="success-message"></p>
+        <button class="btn btn-primary" onclick="document.getElementById('success-modal').classList.add('hidden')">Aceptar</button>
+    </div>
 </div>
 
 <div id="error-modal" class="modal hidden">
@@ -136,6 +127,22 @@
     </div>
 </div>
 
-<script src="/js/clientes.js"></script>
+<!-- Modal para mostrar una contraseña generada (nuevo usuario o reset) -->
+<div id="reveal-password-modal" class="modal hidden">
+    <div class="modal-content" style="text-align: left;">
+        <div class="modal-icon success" style="margin: 0 auto 1rem;">✓</div>
+        <h3 style="text-align: center;">Credenciales generadas</h3>
+        <p style="text-align: center; color: var(--text-3); font-size: 0.875rem;">Guardala ahora: no se puede volver a mostrar. Si se pierde, podés resetearla desde esta pantalla.</p>
+        <div style="background: var(--navy-3); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin: 1rem 0; font-family: var(--mono);">
+            <p style="margin: 0.4rem 0;"><strong>Usuario:</strong> <span id="reveal-username"></span></p>
+            <p style="margin: 0.4rem 0;"><strong>Contraseña:</strong> <span id="reveal-password"></span></p>
+        </div>
+        <button class="btn btn-primary" style="width: 100%;" onclick="document.getElementById('reveal-password-modal').classList.add('hidden')">Ya la guardé</button>
+    </div>
+</div>
+
+<div id="loader" class="loader hidden"></div>
+
+<script src="/js/usuarios.js"></script>
 </body>
 </html>

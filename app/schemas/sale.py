@@ -11,6 +11,9 @@ class SaleCreate(BaseModel):
     items: List[SaleItemCreate]
     initial_payment: float = Field(default=0, ge=0)  # Pago inicial (opcional)
 
+class SaleCancelRequest(BaseModel):
+    reason: Optional[str] = None
+
 class SaleResponse(BaseModel):
     id: int
     total_amount: float

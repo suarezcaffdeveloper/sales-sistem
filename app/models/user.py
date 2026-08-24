@@ -9,6 +9,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     password = Column(String)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
-    
+    role = Column(String, default="admin")  # "admin" o "cajero"
+
     # Relationships
     company = relationship("Company", back_populates="users")

@@ -21,13 +21,17 @@ class PurchaseItemResponse(BaseModel):
 class PurchaseCreate(BaseModel):
     supplier_id: int
     items: List[PurchaseItemCreate] = Field(..., min_items=1, description="Al menos un producto es requerido")
+    initial_payment: float = Field(default=0, ge=0)  # Pago inicial al proveedor (opcional)
 
 class PurchaseResponse(BaseModel):
     id: int
     supplier_id: int
     date: datetime
     total_amount: float
-    
+    paid_amount: float
+    debt_amount: float
+    status: str
+
     class Config:
         from_attributes = True
 
@@ -39,7 +43,10 @@ class PurchaseDetail(BaseModel):
     date: datetime
     items: List[PurchaseItemResponse]
     total_amount: float
-    
+    paid_amount: float
+    debt_amount: float
+    status: str
+
     class Config:
         from_attributes = True
 
@@ -49,6 +56,9 @@ class PurchaseSummary(BaseModel):
     date: datetime
     items_count: int
     total_amount: float
-    
+    paid_amount: float
+    debt_amount: float
+    status: str
+
     class Config:
         from_attributes = True

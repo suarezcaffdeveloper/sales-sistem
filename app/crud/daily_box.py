@@ -99,7 +99,8 @@ def get_daily_box_by_date(db: Session, box_date: str, company_id: int):
         and_(
             Sale.created_at >= date_start,
             Sale.created_at <= date_end,
-            Sale.company_id == company_id
+            Sale.company_id == company_id,
+            Sale.cancelled_at.is_(None)
         )
     ).all()
     
@@ -144,7 +145,8 @@ def get_daily_box_details_by_id(db: Session, box_id: int, company_id: int):
     sales_data = db.query(Sale).filter(
         and_(
             Sale.daily_box_id == box_id,
-            Sale.company_id == company_id
+            Sale.company_id == company_id,
+            Sale.cancelled_at.is_(None)
         )
     ).all()
     

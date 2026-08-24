@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDailyBoxInfo();
     loadPaymentMethodStats();
     loadPendingDebts();
+    loadPendingSupplierDebts();
     setupDailyBoxAutoRefresh();
     loadTopProfitableProducts();
     loadStaleProducts();
@@ -334,6 +335,195 @@ function renderPendingDebtsPanel(data) {
     
     tableHTML += `</div>`;
     debtsContainer.innerHTML = tableHTML;
+}
+
+// ========== DEUDAS A PROVEEDORES (CUENTAS A PAGAR) ==========
+
+// CARGAR DEUDAS A PROVEEDORES
+async function loadPendingSupplierDebts() {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/purchases/pending-debts`);
+
+        if (!response.ok) {
+            console.warn('No se pudo cargar deudas a proveedores');
+            return;
+        }
+
+        const data = await response.json();
+        renderPendingSupplierDebtsPanel(data);
+    } catch (error) {
+        console.error('Error cargando deudas a proveedores:', error);
+    }
+}
+
+// RENDERIZAR PANEL DE DEUDAS A PROVEEDORES
+function renderPendingSupplierDebtsPanel(data) {
+    const debtsContainer = document.getElementById('pending-supplier-debts-container');
+
+    if (!debtsContainer) {
+        console.warn('Contenedor de deudas a proveedores no encontrado');
+        return;
+    }
+
+    const pendingCount = data.pending_count || 0;
+    const totalDebt = data.total_debt || 0;
+    const debts = data.debts || [];
+
+    // Actualizar la stat card de deuda a proveedores
+    const totalDebtEl = document.getElementById('total-supplier-debt');
+    const debtCountEl = document.getElementById('supplier-debt-count');
+    if (totalDebtEl) totalDebtEl.textContent = `$${totalDebt.toFixed(2)}`;
+    if (debtCountEl) debtCountEl.textContent = pendingCount;
+
+    let tableHTML = `
+        <div class="form-section mt-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>Cuentas a Pagar a Proveedores</h3>
+                <span style="background: var(--danger-dim); color: var(--danger); padding: 0.5rem 1rem; border-radius: var(--radius-sm); font-weight: 600;">
+                    ${pendingCount} compra${pendingCount !== 1 ? 's' : ''} • Deuda Total: $${totalDebt.toFixed(2)}
+                </span>
+            </div>
+    `;
+
+    if (debts.length === 0) {
+        tableHTML += '<p style="color: var(--success); text-align: center; padding: 2rem;">No hay deudas pendientes con proveedores</p>';
+    } else {
+        tableHTML += `
+            <div class="table-wrapper" style="max-height: 310px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="text-align: left;">Compra</th>
+                            <th style="text-align: left;">Proveedor</th>
+                            <th style="text-align: left;">Contacto</th>
+                            <th style="text-align: center;">Productos</th>
+                            <th style="text-align: right;">Total</th>
+                            <th style="text-align: right;">Pagado</th>
+                            <th style="text-align: right;">Deuda</th>
+                            <th style="text-align: center;">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        debts.forEach(debt => {
+            tableHTML += `
+                <tr>
+                    <td style="font-weight: 600; color: var(--accent);">#${String(debt.purchase_id).padStart(6, '0')}</td>
+                    <td><strong>${debt.supplier_name}</strong></td>
+                    <td style="font-size: 0.9rem;">${debt.supplier_phone}</td>
+                    <td style="text-align: center;">${debt.item_count}</td>
+                    <td style="text-align: right; font-weight: 600;">$${debt.total_amount.toFixed(2)}</td>
+                    <td style="text-align: right; color: var(--success);">$${debt.paid_amount.toFixed(2)}</td>
+                    <td style="text-align: right; font-weight: 600; color: var(--danger);">$${debt.debt_amount.toFixed(2)}</td>
+                    <td style="text-align: center;">
+                        <button class="btn btn-primary" onclick="openSupplierPaymentModal(${debt.purchase_id}, '${debt.supplier_name}', ${debt.total_amount}, ${debt.paid_amount}, ${debt.debt_amount})"
+                                style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                            Pagar
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tableHTML += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    tableHTML += `</div>`;
+    debtsContainer.innerHTML = tableHTML;
+}
+
+// ABRIR MODAL DE PAGO A PROVEEDOR
+function openSupplierPaymentModal(purchaseId, supplierName, totalAmount, paidAmount, debtAmount) {
+    const modal = document.getElementById('supplier-payment-debt-modal');
+    if (!modal) {
+        console.error('Modal de pago a proveedor no encontrado');
+        return;
+    }
+
+    document.getElementById('supplier-payment-purchase-id').textContent = String(purchaseId).padStart(6, '0');
+    document.getElementById('supplier-payment-supplier-name').textContent = supplierName;
+    document.getElementById('supplier-payment-total-amount').textContent = `$${totalAmount.toFixed(2)}`;
+    document.getElementById('supplier-payment-paid-amount').textContent = `$${paidAmount.toFixed(2)}`;
+    document.getElementById('supplier-payment-debt-amount').textContent = `$${debtAmount.toFixed(2)}`;
+
+    const paymentInput = document.getElementById('supplier-payment-new-amount');
+    paymentInput.value = debtAmount.toFixed(2);
+    paymentInput.max = debtAmount;
+
+    modal.dataset.purchaseId = purchaseId;
+    modal.dataset.totalDebt = debtAmount;
+
+    modal.classList.remove('hidden');
+}
+
+// CERRAR MODAL DE PAGO A PROVEEDOR
+function closeSupplierPaymentModal() {
+    const modal = document.getElementById('supplier-payment-debt-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+// PROCESAR PAGO A PROVEEDOR
+async function processSupplierDebtPayment() {
+    const modal = document.getElementById('supplier-payment-debt-modal');
+    const purchaseId = parseInt(modal.dataset.purchaseId);
+    const totalDebt = parseFloat(modal.dataset.totalDebt);
+    const paymentAmount = parseFloat(document.getElementById('supplier-payment-new-amount').value);
+
+    if (isNaN(paymentAmount) || paymentAmount <= 0) {
+        showErrorDashboard('Ingresa un monto válido mayor a 0');
+        return;
+    }
+
+    if (paymentAmount > totalDebt) {
+        showErrorDashboard('El monto no puede exceder la deuda pendiente');
+        return;
+    }
+
+    try {
+        const payBtn = document.getElementById('confirm-supplier-debt-payment-btn');
+        payBtn.disabled = true;
+        payBtn.textContent = 'Procesando...';
+
+        const response = await fetchWithAuth(`${API_BASE}/supplier-payments`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                purchase_id: purchaseId,
+                amount: paymentAmount,
+                payment_method: 'efectivo'
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            showErrorDashboard(data.detail || 'Error al procesar el pago');
+            return;
+        }
+
+        closeSupplierPaymentModal();
+        showSuccessDashboard('Pago a proveedor registrado correctamente');
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+        loadPendingSupplierDebts();
+
+    } catch (error) {
+        console.error('Error procesando pago a proveedor:', error);
+        showErrorDashboard('Error de conexión al procesar el pago');
+    } finally {
+        const payBtn = document.getElementById('confirm-supplier-debt-payment-btn');
+        payBtn.disabled = false;
+        payBtn.textContent = 'Confirmar Pago';
+    }
 }
 
 // ========== CAJA DIARIA ==========
@@ -1075,56 +1265,87 @@ function renderBusinessInsights(insights) {
     }).join('');
 }
 
+// ========== DESCARGA DE REPORTES (helper genérico) ==========
+
+// Descarga el resultado de un endpoint protegido como archivo, usando el
+// mismo token que el resto de la app (fetchWithAuth), en vez de una key de
+// localStorage que nunca se usa en ningún otro lado.
+async function downloadReport(url, filename, errorMessage) {
+    try {
+        const response = await fetchWithAuth(url);
+        if (!response || !response.ok) {
+            showErrorDashboard(errorMessage);
+            return;
+        }
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objectUrl);
+    } catch (e) {
+        console.error('Error descargando reporte:', e);
+        showErrorDashboard(errorMessage);
+    }
+}
+
 // ========== EXPORTACIÓN CAJA DIARIA ==========
 
 async function exportDailyBoxExcel(date) {
     const boxDate = date || new Date().toISOString().split('T')[0];
-    try {
-        const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
-        const response = await fetch(`${API_BASE}/reports/daily-box/excel?date=${boxDate}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) {
-            alert('Error al generar el Excel. Intente de nuevo.');
-            return;
-        }
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `caja-${boxDate}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    } catch (e) {
-        console.error('Error exportando Excel:', e);
-        alert('Error al exportar el Excel.');
-    }
+    await downloadReport(
+        `${API_BASE}/reports/daily-box/excel?date=${boxDate}`,
+        `caja-${boxDate}.xlsx`,
+        'Error al generar el Excel. Intente de nuevo.'
+    );
 }
 
 async function exportDailyBoxPDF(date) {
     const boxDate = date || new Date().toISOString().split('T')[0];
-    try {
-        const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
-        const response = await fetch(`${API_BASE}/reports/daily-box/pdf?date=${boxDate}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) {
-            alert('Error al generar el PDF. Intente de nuevo.');
-            return;
-        }
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `caja-${boxDate}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    } catch (e) {
-        console.error('Error exportando PDF:', e);
-        alert('Error al exportar el PDF.');
-    }
+    await downloadReport(
+        `${API_BASE}/reports/daily-box/pdf?date=${boxDate}`,
+        `caja-${boxDate}.pdf`,
+        'Error al generar el PDF. Intente de nuevo.'
+    );
+}
+
+// ========== REPORTES DIARIO / SEMANAL / MENSUAL / VENTAS ==========
+
+async function exportTodayReport() {
+    const today = new Date().toISOString().split('T')[0];
+    await downloadReport(
+        `${API_BASE}/reports/daily?date=${today}`,
+        `reporte-diario-${today}.pdf`,
+        'Error al generar el reporte diario.'
+    );
+}
+
+async function exportWeeklyReport() {
+    const today = new Date().toISOString().split('T')[0];
+    await downloadReport(
+        `${API_BASE}/reports/weekly`,
+        `reporte-semanal-${today}.pdf`,
+        'Error al generar el reporte semanal.'
+    );
+}
+
+async function exportMonthlyReport() {
+    const today = new Date().toISOString().split('T')[0];
+    await downloadReport(
+        `${API_BASE}/reports/monthly`,
+        `reporte-mensual-${today}.pdf`,
+        'Error al generar el reporte mensual.'
+    );
+}
+
+async function exportSalesExcelReport() {
+    const today = new Date().toISOString().split('T')[0];
+    await downloadReport(
+        `${API_BASE}/reports/sales/excel`,
+        `ventas-${today}.xlsx`,
+        'Error al generar el Excel de ventas.'
+    );
 }

@@ -48,13 +48,21 @@ def create_purchase(db: Session, purchase_data: PurchaseCreate, company_id: int)
             "subtotal": subtotal
         })
     
-    # 💾 3. Crear compra
+    # Validar pago inicial - pero SOLO para validación, no para guardar aquí
+    initial_payment = purchase_data.initial_payment or 0
+    if initial_payment > total_amount:
+        raise Exception("El pago inicial no puede exceder el total de la compra")
+
+    # 💾 3. Crear compra - SIEMPRE con pagado=0, será actualizado por el pago después
     purchase = Purchase(
         company_id=company_id,
         supplier_id=purchase_data.supplier_id,
-        total_amount=total_amount
+        total_amount=total_amount,
+        paid_amount=0.0,
+        debt_amount=total_amount,
+        status="pendiente"
     )
-    
+
     db.add(purchase)
     db.commit()
     db.refresh(purchase)
@@ -125,7 +133,10 @@ def get_purchase_details(db: Session, purchase_id: int, company_id: int):
         "supplier_phone": purchase.supplier.phone,
         "date": purchase.date,
         "items": items_detail,
-        "total_amount": purchase.total_amount
+        "total_amount": purchase.total_amount,
+        "paid_amount": purchase.paid_amount or 0.0,
+        "debt_amount": purchase.debt_amount or 0.0,
+        "status": purchase.status or "pendiente"
     }
 
 
@@ -144,10 +155,46 @@ def get_all_purchases(db: Session, company_id: int):
             "supplier_name": purchase.supplier.name,
             "date": purchase.date,
             "items_count": len(items),
-            "total_amount": purchase.total_amount
+            "total_amount": purchase.total_amount,
+            "paid_amount": purchase.paid_amount or 0.0,
+            "debt_amount": purchase.debt_amount or 0.0,
+            "status": purchase.status or "pendiente"
         })
-    
+
     return result
+
+
+def get_pending_supplier_debts(db: Session, company_id: int):
+    """Obtiene todas las compras con deuda pendiente (deuda > 0) a proveedores."""
+    purchases = db.query(Purchase).filter(
+        Purchase.company_id == company_id,
+        Purchase.debt_amount > 0,
+        Purchase.total_amount > 0
+    ).order_by(desc(Purchase.date)).all()
+
+    debts = []
+    total_debt = 0.0
+    for purchase in purchases:
+        supplier_name = purchase.supplier.name if purchase.supplier else "Desconocido"
+        supplier_phone = purchase.supplier.phone if purchase.supplier else "-"
+        item_count = len(purchase.items) if purchase.items else 0
+        debt = float(purchase.debt_amount or 0)
+        total_debt += debt
+        debts.append({
+            "purchase_id": purchase.id,
+            "supplier_name": supplier_name,
+            "supplier_phone": supplier_phone,
+            "item_count": item_count,
+            "total_amount": float(purchase.total_amount or 0),
+            "paid_amount": float(purchase.paid_amount or 0),
+            "debt_amount": debt
+        })
+
+    return {
+        "pending_count": len(debts),
+        "total_debt": total_debt,
+        "debts": debts
+    }
 
 
 def get_purchases_by_supplier(db: Session, supplier_id: int, company_id: int):
@@ -174,7 +221,10 @@ def get_purchases_by_supplier(db: Session, supplier_id: int, company_id: int):
             "supplier_name": purchase.supplier.name,
             "date": purchase.date,
             "items_count": len(items),
-            "total_amount": purchase.total_amount
+            "total_amount": purchase.total_amount,
+            "paid_amount": purchase.paid_amount or 0.0,
+            "debt_amount": purchase.debt_amount or 0.0,
+            "status": purchase.status or "pendiente"
         })
     
     return result

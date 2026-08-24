@@ -36,5 +36,18 @@ def get_current_user_with_company(
     
     if not user.company_id:
         raise HTTPException(status_code=400, detail="Usuario no está asociado a una compañía")
-    
-    return {"user_id": user.id, "company_id": user.company_id, "username": user.username}
+
+    return {"user_id": user.id, "company_id": user.company_id, "username": user.username, "role": user.role or "admin"}
+
+
+def require_admin(user_info: dict = Depends(get_current_user_with_company)):
+    """
+    Igual que get_current_user_with_company, pero además exige que el
+    usuario sea admin de su compañía. Se usa como dependencia en las rutas
+    reservadas para administradores (gestión de productos/clientes/
+    proveedores/compras, reportes, estadísticas, usuarios).
+    """
+    if user_info.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Esta acción requiere permisos de administrador")
+
+    return user_info

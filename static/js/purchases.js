@@ -23,6 +23,8 @@ const cartItemsPurchaseContainer = document.getElementById('cart-items-purchase'
 const subtotalPurchaseSpan = document.getElementById('subtotal-purchase');
 const itemCountPurchaseSpan = document.getElementById('item-count-purchase');
 const totalPricePurchaseSpan = document.getElementById('total-price-purchase');
+const purchasePaymentMethod = document.getElementById('purchase-payment-method');
+const purchaseInitialPayment = document.getElementById('purchase-initial-payment');
 const successModal = document.getElementById('success-modal');
 const errorModal = document.getElementById('error-modal');
 const loader = document.getElementById('loader');
@@ -345,7 +347,7 @@ function updateCompletePurchaseButton() {
 
 // ========== COMPLETAR COMPRA ==========
 
-async function completePurchase() {
+function completePurchase() {
     if (!selectedSupplierId) {
         showError('Debes seleccionar un proveedor');
         return;
@@ -356,13 +358,34 @@ async function completePurchase() {
         return;
     }
 
+    const totalAmount = parseFloat(totalPricePurchaseSpan.textContent.replace('$', ''));
+    const initialPaymentAmount = parseFloat(purchaseInitialPayment.value) || 0;
+
+    if (initialPaymentAmount > totalAmount) {
+        showError('El pago inicial no puede exceder el total');
+        return;
+    }
+
+    const total = totalPricePurchaseSpan.textContent;
+    showConfirm(
+        `¿Confirmás la compra a ${selectedSupplier.name} por un total de ${total}?`,
+        submitPurchase,
+        'Confirmar compra'
+    );
+}
+
+// ENVIAR LA COMPRA AL SERVIDOR (tras la confirmación del usuario)
+async function submitPurchase() {
+    const initialPaymentAmount = parseFloat(purchaseInitialPayment.value) || 0;
+
     const purchaseData = {
         supplier_id: selectedSupplierId,
         items: purchaseItems.map(item => ({
             product_id: item.product_id,
             quantity: item.quantity,
             unit_cost: item.unit_cost
-        }))
+        })),
+        initial_payment: initialPaymentAmount
     };
 
     try {
@@ -382,8 +405,15 @@ async function completePurchase() {
             return;
         }
 
+        // Si hay pago inicial, registrarlo
+        if (initialPaymentAmount > 0) {
+            await registerSupplierPayment(data.id, initialPaymentAmount);
+        }
+
         // Éxito
-        showSuccess(`Compra completada. ID: ${data.id} | Total: $${data.total_amount.toFixed(2)}`);
+        const debt = Math.max(0, data.total_amount - initialPaymentAmount);
+        const debtMsg = debt > 0 ? ` | Deuda con el proveedor: $${debt.toFixed(2)}` : ' | Pagada por completo';
+        showSuccess(`Compra completada. ID: ${data.id} | Total: $${data.total_amount.toFixed(2)}${debtMsg}`);
         resetPurchaseForm();
         loadProducts(); // Recargar productos para actualizar stock
         loadPurchasesHistory(); // Recargar historial
@@ -393,6 +423,34 @@ async function completePurchase() {
         showError('Error de conexión al procesar la compra');
     } finally {
         showLoader(false);
+    }
+}
+
+// REGISTRAR PAGO A PROVEEDOR
+async function registerSupplierPayment(purchaseId, amount) {
+    try {
+        const paymentData = {
+            purchase_id: purchaseId,
+            amount: parseFloat(amount),
+            payment_method: purchasePaymentMethod?.value || 'efectivo'
+        };
+
+        const response = await fetchWithAuth(`${API_BASE}/supplier-payments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(paymentData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.warn('⚠️ Error al registrar pago a proveedor:', errorData.detail || 'Error desconocido');
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.warn('⚠️ Aviso: Error registrando pago a proveedor:', error);
+        return false;
     }
 }
 
@@ -409,6 +467,8 @@ function resetPurchaseForm() {
     unitCostInput.value = '';
     searchResultsPurchase.innerHTML = '';
     createNewProductBtn.style.display = 'none';
+    purchaseInitialPayment.value = '0';
+    purchasePaymentMethod.value = 'efectivo';
     renderPurchaseCart();
     updateCompletePurchaseButton();
 }
@@ -531,17 +591,103 @@ function showPurchaseDetailModal(purchaseDetail) {
             </tbody>
         </table>
 
-        <div style="text-align: right; padding: 1rem 1.25rem; background: var(--navy-3); border: 1px solid var(--border); border-radius: var(--radius);">
-            <p style="margin: 0; font-size: 1.2rem; font-weight: bold; color: var(--text-1);">Total: $${purchaseDetail.total_amount.toFixed(2)}</p>
+        <div style="padding: 1rem 1.25rem; background: var(--navy-3); border: 1px solid var(--border); border-radius: var(--radius);">
+            <div style="display: flex; justify-content: space-between; padding: 0.35rem 0; font-size: 1.2rem; font-weight: bold; color: var(--text-1);">
+                <span>Total:</span>
+                <span>$${purchaseDetail.total_amount.toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 0.35rem 0; color: var(--text-1);">
+                <span>Pagado:</span>
+                <span>$${(purchaseDetail.paid_amount || 0).toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 0.35rem 0; color: var(--text-1);">
+                <span>Deuda:</span>
+                <span>$${(purchaseDetail.debt_amount || 0).toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 0.35rem 0; color: var(--text-1);">
+                <span>Estado:</span>
+                <span style="font-weight: bold; color: ${purchaseDetail.status === 'pagado' ? '#059669' : purchaseDetail.status === 'parcial' ? '#d97706' : '#dc2626'};">
+                    ${(purchaseDetail.status || 'PENDIENTE').toUpperCase()}
+                </span>
+            </div>
         </div>
     `;
     
     document.getElementById('purchase-detail-modal').classList.remove('hidden');
+
+    // Guardar detalle para usar en impresión y PDF
+    window.currentPurchaseDetail = purchaseDetail;
 }
 
 // CERRAR MODAL DE DETALLE
 function closePurchaseDetailModal() {
     document.getElementById('purchase-detail-modal').classList.add('hidden');
+}
+
+// IMPRIMIR DETALLE DE COMPRA
+function printPurchase() {
+    const detailContent = document.getElementById('purchase-detail-content').innerHTML;
+    const printWindow = window.open('', '', 'height=600,width=800');
+
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Detalle de Compra - castZONE</title>
+            <style>
+                body {
+                    font-family: 'Courier New', monospace;
+                    padding: 20px;
+                    max-width: 600px;
+                    margin: 0 auto;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                th, td {
+                    padding: 0.5rem;
+                }
+                tr {
+                    border-bottom: 1px solid #eee;
+                }
+                @media print {
+                    body { padding: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            ${detailContent}
+        </body>
+        </html>
+    `);
+
+    printWindow.document.close();
+    setTimeout(() => {
+        printWindow.print();
+    }, 250);
+}
+
+// DESCARGAR DETALLE DE COMPRA COMO PDF
+function downloadPurchasePDF() {
+    if (!window.currentPurchaseDetail) {
+        showError('No hay datos de la compra para generar el PDF');
+        return;
+    }
+
+    const detailContent = document.getElementById('purchase-detail-content');
+    const purchaseDetail = window.currentPurchaseDetail;
+    const filename = `Compra_${String(purchaseDetail.id).padStart(6, '0')}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+    const options = {
+        margin: [5, 5, 5, 5],
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+    };
+
+    html2pdf().set(options).from(detailContent).save();
 }
 
 // ========== CREAR NUEVO PRODUCTO ==========

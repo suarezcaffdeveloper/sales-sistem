@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="/css/theme-crisp.css">
     <script src="/js/checkAuth.js"></script>
 </head>
-<body>
+<body data-page="suppliers">
 
 <nav class="navbar">
     <div class="nav-container">
@@ -28,6 +28,7 @@
             <li><a href="/productos.html" class="nav-link" data-page="products"><span>Productos</span></a></li>
             <li><a href="/clientes.html" class="nav-link" data-page="customers"><span>Clientes</span></a></li>
             <li><a href="/proveedores.html" class="nav-link active" data-page="suppliers"><span>Proveedores</span></a></li>
+            <li><a href="/usuarios.html" class="nav-link" data-page="users"><span>Usuarios</span></a></li>
             <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid var(--border); padding-left: 1rem;">
                 <span id="username-display" style="color: var(--text-2); font-size: 0.875rem;"></span>
                 <button onclick="logout()" class="btn btn-secondary" style="padding: 0.45rem 0.875rem; font-size: 0.875rem;">Salir</button>

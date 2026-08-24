@@ -16,19 +16,71 @@ function checkAuthentication() {
     }
 
     console.log('✓ Token encontrado:', token.substring(0, 20) + '...');
-    
+
     // Validar que el token sea válido haciendo una llamada al servidor
     validateToken(token)
         .then(() => {
             console.log('✅ Sesión validada correctamente');
+            return loadUserRole(token);
+        })
+        .then(() => {
+            applyRoleBasedUI();
         })
         .catch((error) => {
             console.error('🚨 Sesión inválida:', error);
             // Si el token es inválido, limpiar y redirigir a login
             localStorage.removeItem('auth_token');
             localStorage.removeItem('username');
+            localStorage.removeItem('user_role');
             window.location.href = '/login.html';
         });
+}
+
+/**
+ * Obtiene el rol del usuario actual (admin o cajero) y lo guarda para
+ * poder armar la interfaz sin tener que pedirlo de nuevo en cada acción.
+ */
+async function loadUserRole(token) {
+    try {
+        const response = await fetch('/api/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem('user_role', data.role || 'admin');
+        }
+    } catch (error) {
+        console.error('Error obteniendo el rol del usuario:', error);
+    }
+}
+
+/**
+ * Páginas a las que un cajero (empleado que solo vende) tiene acceso.
+ * Todo lo que no esté en esta lista es exclusivo de admin: se oculta del
+ * menú y, si el cajero entra por URL directa, se lo redirige a Ventas.
+ * El backend igual rechaza esas acciones aunque alguien fuerce la UI.
+ */
+const CAJERO_ALLOWED_PAGES = ['sales'];
+
+function applyRoleBasedUI() {
+    const role = localStorage.getItem('user_role') || 'admin';
+    const isCajero = role === 'cajero';
+
+    document.querySelectorAll('.nav-link[data-page]').forEach(link => {
+        const page = link.dataset.page;
+        if (isCajero && !CAJERO_ALLOWED_PAGES.includes(page)) {
+            link.style.display = 'none';
+        }
+    });
+
+    if (isCajero) {
+        const currentPage = document.body.dataset.page;
+        if (currentPage && !CAJERO_ALLOWED_PAGES.includes(currentPage)) {
+            window.location.href = '/';
+        }
+    }
+
+    document.body.classList.add(isCajero ? 'role-cajero' : 'role-admin');
 }
 
 /**
@@ -87,6 +139,7 @@ function getUsername() {
 function logout() {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('username');
+    localStorage.removeItem('user_role');
     window.location.href = '/login.html';
 }
 
@@ -113,6 +166,7 @@ async function fetchWithAuth(url, options = {}) {
     if (response.status === 401) {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('username');
+        localStorage.removeItem('user_role');
         window.location.href = '/login.html';
         return;
     }

@@ -20,6 +20,7 @@ class Company(Base):
     purchases = relationship("Purchase", back_populates="company", cascade="all, delete-orphan")
     sales = relationship("Sale", back_populates="company", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="company", cascade="all, delete-orphan")
+    supplier_payments = relationship("SupplierPayment", back_populates="company", cascade="all, delete-orphan")
     daily_boxes = relationship("DailyBox", back_populates="company", cascade="all, delete-orphan")
 
     def __repr__(self):

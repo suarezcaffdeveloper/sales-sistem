@@ -10,7 +10,7 @@
     <script src="/js/checkAuth.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
-<body>
+<body data-page="dashboard">
 
 <nav class="navbar">
     <div class="nav-container">
@@ -29,6 +29,7 @@
             <li><a href="/productos.html" class="nav-link" data-page="products"><span>Productos</span></a></li>
             <li><a href="/clientes.html" class="nav-link" data-page="customers"><span>Clientes</span></a></li>
             <li><a href="/proveedores.html" class="nav-link" data-page="suppliers"><span>Proveedores</span></a></li>
+            <li><a href="/usuarios.html" class="nav-link" data-page="users"><span>Usuarios</span></a></li>
             <li style="margin-left: auto; display: flex; align-items: center; gap: 1rem; border-left: 1px solid var(--border); padding-left: 1rem;">
                 <span id="username-display" style="color: var(--text-2); font-size: 0.875rem;"></span>
                 <button onclick="logout()" class="btn btn-secondary" style="padding: 0.45rem 0.875rem; font-size: 0.875rem;">Salir</button>
@@ -88,6 +89,11 @@
             <div class="value" id="total-debt">$0.00</div>
             <div class="subtitle"><span id="debt-count">0</span> factura(s) · <span style="font-size:0.75rem;opacity:0.7;">Click para ver el gráfico</span></div>
         </div>
+        <div class="stat-card danger">
+            <h3>Deuda a proveedores</h3>
+            <div class="value" id="total-supplier-debt">$0.00</div>
+            <div class="subtitle"><span id="supplier-debt-count">0</span> compra(s) pendiente(s) de pago</div>
+        </div>
 
         <div id="payment-methods-container"></div>
     </div>
@@ -139,6 +145,18 @@
         </div>
     </div> <br>
 
+    <!-- Reportes -->
+    <div class="form-section mt-section">
+        <h3>Reportes</h3>
+        <p style="color: var(--text-3); font-size: 0.875rem; margin-bottom: 1.25rem;">Descargá un resumen de ventas, ganancias y productos más rentables del período elegido.</p>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <button class="btn btn-secondary" onclick="exportTodayReport()" style="margin: 0;">Reporte diario (PDF)</button>
+            <button class="btn btn-secondary" onclick="exportWeeklyReport()" style="margin: 0;">Reporte semanal (PDF)</button>
+            <button class="btn btn-secondary" onclick="exportMonthlyReport()" style="margin: 0;">Reporte mensual (PDF)</button>
+            <button class="btn btn-success" onclick="exportSalesExcelReport()" style="margin: 0;">Exportar ventas (Excel, últimos 30 días)</button>
+        </div>
+    </div>
+
     <!-- Alertas stock -->
     <div id="low-stock-alerts"></div>
 
@@ -188,6 +206,11 @@
 
     <!-- Deudas Pendientes -->
     <div id="pending-debts-container" class="form-section mt-section">
+        <!-- Se llenará dinámicamente -->
+    </div>
+
+    <!-- Deudas a Proveedores -->
+    <div id="pending-supplier-debts-container" class="form-section mt-section">
         <!-- Se llenará dinámicamente -->
     </div>
 
@@ -327,6 +350,57 @@
                 Cancelar
             </button>
             <button id="confirm-debt-payment-btn" class="btn btn-success" onclick="processDebtPayment()" style="margin: 0;">
+                Confirmar Pago
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="supplier-payment-debt-modal" class="modal hidden">
+    <div class="modal-content" style="max-width: 500px;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <h3 style="margin-bottom: 0.5rem;">Registrar Pago a Proveedor</h3>
+            <p style="color: var(--text-3); font-size: 0.875rem;">Compra #<span id="supplier-payment-purchase-id"></span></p>
+        </div>
+
+        <div style="background: var(--navy-3); border: 1px solid var(--border); padding: 1.5rem; border-radius: var(--radius); margin-bottom: 1.5rem;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <label style="color: var(--text-2); font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Proveedor</label>
+                    <p style="margin: 0; font-weight: 600; color: var(--text-1);" id="supplier-payment-supplier-name"></p>
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label style="color: var(--text-2); font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Total Compra</label>
+                        <p style="margin: 0; font-weight: 600; color: var(--text-1);" id="supplier-payment-total-amount">$0.00</p>
+                    </div>
+                    <div>
+                        <label style="color: var(--text-2); font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Ya Pagado</label>
+                        <p style="margin: 0; font-weight: 600; color: var(--success);" id="supplier-payment-paid-amount">$0.00</p>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1rem; padding: 1rem; background: var(--danger-dim); border-radius: var(--radius-sm);">
+                    <label style="color: var(--danger); font-size: 0.875rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Deuda Pendiente</label>
+                    <p style="margin: 0; font-weight: 700; color: var(--danger); font-size: 1.25rem;" id="supplier-payment-debt-amount">$0.00</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <label for="supplier-payment-new-amount" style="color: var(--text-1); font-weight: 600; display: block; margin-bottom: 0.5rem;">Ingresa el monto a pagar</label>
+            <input type="number" id="supplier-payment-new-amount" min="0" step="0.01" placeholder="0.00"
+                   style="width: 100%; padding: 0.75rem; border: 2px solid var(--accent); border-radius: var(--radius-sm); font-size: 1rem; font-weight: 600; background: var(--navy-3); color: var(--text-1);">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <button class="btn btn-secondary" onclick="closeSupplierPaymentModal()" style="margin: 0;">
+                Cancelar
+            </button>
+            <button id="confirm-supplier-debt-payment-btn" class="btn btn-success" onclick="processSupplierDebtPayment()" style="margin: 0;">
                 Confirmar Pago
             </button>
         </div>

@@ -2,7 +2,7 @@ describe('Compras', () => {
 
   beforeEach(() => {
     cy.login()
-    cy.visit('https://sales-sistem.onrender.com/compras.html')
+    cy.visit('/compras.html')
   })
 
   it('No permite confirmar compra vacía', () => {

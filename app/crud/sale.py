@@ -4,6 +4,7 @@ from app.models.sale_item import SaleItem
 from app.models.product import Product
 from app.schemas.sale import SaleCreate
 from sqlalchemy import desc
+from datetime import datetime
 from app.crud.daily_box import get_current_daily_box
 
 def create_sale(db: Session, sale_data: SaleCreate, company_id: int):
@@ -83,6 +84,48 @@ def create_sale(db: Session, sale_data: SaleCreate, company_id: int):
     return sale
 
 
+def cancel_sale(db: Session, sale_id: int, company_id: int, reason: str = None):
+    """
+    Anula una venta: repone el stock de todos sus items y la marca como
+    cancelada. No borra la venta ni sus montos históricos (total_amount,
+    paid_amount quedan como constancia de lo que pasó), pero pone la deuda
+    en 0 (una venta anulada no genera deuda) y a partir de ahí queda
+    excluida de las estadísticas, cajas y reportes.
+    """
+    sale = db.query(Sale).filter(
+        Sale.id == sale_id,
+        Sale.company_id == company_id
+    ).first()
+
+    if not sale:
+        raise Exception(f"Venta {sale_id} no existe")
+
+    if sale.cancelled_at is not None:
+        raise Exception("La venta ya fue anulada")
+
+    # Reponer stock de cada item
+    for item in sale.items:
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        if product:
+            product.stock += item.quantity
+
+    refund_due = sale.paid_amount or 0.0
+
+    sale.cancelled_at = datetime.utcnow()
+    sale.cancel_reason = reason
+    sale.debt_amount = 0.0
+
+    db.commit()
+    db.refresh(sale)
+
+    return {
+        "id": sale.id,
+        "cancelled_at": sale.cancelled_at,
+        "cancel_reason": sale.cancel_reason,
+        "refund_due": refund_due
+    }
+
+
 def get_sale_details(db: Session, sale_id: int, company_id: int):
     """Obtiene los detalles completos de una venta para el ticket/factura"""
     print(f"\n📋 Obteniendo detalles de venta {sale_id}")
@@ -137,7 +180,10 @@ def get_sale_details(db: Session, sale_id: int, company_id: int):
         "total_amount": float(sale.total_amount),
         "paid_amount": float(sale.paid_amount) if sale.paid_amount else 0.0,
         "debt_amount": float(sale.debt_amount) if sale.debt_amount else 0.0,
-        "status": sale.status or "pendiente"
+        "status": sale.status or "pendiente",
+        "cancelled": sale.cancelled_at is not None,
+        "cancelled_at": sale.cancelled_at,
+        "cancel_reason": sale.cancel_reason
     }
     
     print(f"   ✅ Detalles preparados: {len(items_detail)} items, Total ${result['total_amount']}")
@@ -167,7 +213,10 @@ def get_all_sales(db: Session, company_id: int):
             "paid_amount": sale.paid_amount,
             "debt_amount": sale.debt_amount,
             "status": sale.status,
-            "item_count": item_count
+            "item_count": item_count,
+            "cancelled": sale.cancelled_at is not None,
+            "cancelled_at": sale.cancelled_at,
+            "cancel_reason": sale.cancel_reason
         })
     
     return sales_list

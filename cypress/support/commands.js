@@ -16,8 +16,16 @@ Cypress.Commands.add('login', () => {
 
   cy.intercept('POST', '/api/login').as('loginRequest')
 
-  cy.get('#username').type('Santipesca')
-  cy.get('#password').type('santipesca')
+  // Antes esto tenía hardcodeadas las credenciales reales del dueño del
+  // negocio (Santipesca/santipesca) directo en el repo. Ahora usa por
+  // defecto la cuenta demo (creada por seed_demo.py, sin datos reales) y
+  // se puede pisar con cypress.env.json (gitignored, ver
+  // cypress.env.json.example) o las variables CYPRESS_username/CYPRESS_password.
+  const username = Cypress.env('username') || 'demo'
+  const password = Cypress.env('password') || 'demo123'
+
+  cy.get('#username').type(username)
+  cy.get('#password').type(password)
   cy.get('#login-btn').click()
 
   cy.wait('@loginRequest')
