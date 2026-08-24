@@ -43,14 +43,7 @@ def _token_for(username: str) -> str:
     return create_access_token({"sub": username})
 
 
-@pytest.fixture
-def company(client):
-    """
-    Registra una compañía nueva (con su admin y su cajero por defecto) para
-    este test puntual. Cada test trabaja con su propia compañía, así los
-    datos nunca se pisan entre tests aunque compartan la misma base de
-    datos de test (la app ya es multi-tenant por company_id).
-    """
+def _register_company(client):
     username = _unique("admin")
     password = "TestPass123!"
     resp = client.post("/api/register", json={
@@ -71,6 +64,23 @@ def company(client):
         "cajero_username": data["employee_username"],
         "cajero_headers": {"Authorization": f"Bearer {cajero_token}"},
     }
+
+
+@pytest.fixture
+def company(client):
+    """
+    Registra una compañía nueva (con su admin y su cajero por defecto) para
+    este test puntual. Cada test trabaja con su propia compañía, así los
+    datos nunca se pisan entre tests aunque compartan la misma base de
+    datos de test (la app ya es multi-tenant por company_id).
+    """
+    return _register_company(client)
+
+
+@pytest.fixture
+def other_company(client):
+    """Una segunda compañía independiente, para tests de aislamiento multi-tenant."""
+    return _register_company(client)
 
 
 @pytest.fixture

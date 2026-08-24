@@ -158,7 +158,7 @@ def update(product_id: int, product: ProductCreate, user_info: dict = Depends(re
     updated = update_product(db, product_id, product, user_info["company_id"])
 
     if not updated:
-        return {"error": "Producto no encontrado"}
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
 
     return updated
 
@@ -167,7 +167,7 @@ def delete(product_id: int, user_info: dict = Depends(require_admin), db: Sessio
     deleted = delete_product(db, product_id, user_info["company_id"])
 
     if not deleted:
-        return {"error": "Producto no encontrado"}
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
 
     return {"message": "Producto eliminado"}
 
@@ -197,16 +197,16 @@ def delete_supplier_route(supplier_id: int, user_info: dict = Depends(require_ad
     deleted = delete_supplier(db, supplier_id, user_info["company_id"])
 
     if not deleted:
-        return {"error": "Proveedor no encontrado"}
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
 
     return {"message": "Proveedor eliminado"}
 
 @protected_router.put("/suppliers/{supplier_id}", response_model=SupplierResponse)
 def update_supplier_route(supplier_id: int, supplier: SupplierCreate, user_info: dict = Depends(require_admin), db: Session = Depends(get_db)):
     updated = update_supplier(db, supplier_id, supplier, user_info["company_id"])
-    
+
     if not updated:
-        return {"error": "Proveedor no encontrado"}
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
     
     return updated
 
@@ -227,16 +227,16 @@ def delete_customer_route(customer_id: int, user_info: dict = Depends(require_ad
     deleted = delete_customer(db, customer_id, user_info["company_id"])
 
     if not deleted:
-        return {"error": "Cliente no encontrado"}
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
     return {"message": "Cliente eliminado"}
 
 @protected_router.put("/customers/{customer_id}", response_model=CustomerResponse)
 def update_customer_route(customer_id: int, customer: CustomerCreate, user_info: dict = Depends(require_admin), db: Session = Depends(get_db)):
     updated = update_customer(db, customer_id, customer, user_info["company_id"])
-    
+
     if not updated:
-        return {"error": "Cliente no encontrado"}
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
     
     return updated
 
