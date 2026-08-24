@@ -50,10 +50,9 @@ def _get_period_sales(db: Session, company_id: int, start_date: datetime, end_da
 def _summarize_sales(sales: list) -> dict:
     """
     Calcula los totales de un período a partir de una lista de ventas ya
-    filtrada (activas, de una compañía). Usa el mismo criterio de ganancia
-    (precio - cost_price actual del producto) que ya usa el dashboard, para
-    que estos reportes no muestren números distintos a los que el usuario
-    ya ve en pantalla.
+    filtrada (activas, de una compañía). El ingreso se toma de
+    Sale.total_amount (ya refleja descuentos aplicados en el checkout); el
+    costo sale de los ítems, que no cambia con el descuento.
     """
     total_revenue = 0.0
     total_cost = 0.0
@@ -62,6 +61,7 @@ def _summarize_sales(sales: list) -> dict:
 
     for sale in sales:
         total_debt += float(sale.debt_amount or 0)
+        total_revenue += float(sale.total_amount or 0)
         if sale.status == "pagado":
             paid_count += 1
         for item in sale.items:
@@ -69,7 +69,6 @@ def _summarize_sales(sales: list) -> dict:
             if not product:
                 continue
             qty = item.quantity or 0
-            total_revenue += (product.price or 0) * qty
             total_cost += (product.cost_price or 0) * qty
 
     total_profit = total_revenue - total_cost
@@ -516,12 +515,13 @@ def generate_daily_box_excel(db: Session, box_date_str: str, company_id: int):
     total_sales_amt = sum(s.total_amount or 0 for s in sales)
     total_paid = sum(s.paid_amount or 0 for s in sales)
     total_debt = sum(s.debt_amount or 0 for s in sales)
-    total_profit = 0.0
+    total_cost_of_sales = 0.0
     for sale in sales:
         for item in sale.items:
             p = item.product
             if p:
-                total_profit += (p.price - (p.cost_price or 0)) * (item.quantity or 0)
+                total_cost_of_sales += (p.cost_price or 0) * (item.quantity or 0)
+    total_profit = total_sales_amt - total_cost_of_sales
 
     ws_summary[f"A{row_offset}"] = "MÉTRICAS DEL DÍA"
     ws_summary.merge_cells(f"A{row_offset}:B{row_offset}")
@@ -670,7 +670,7 @@ def generate_daily_box_pdf(db: Session, box_date_str: str, company_id: int):
     total_sales_amt = sum(s.total_amount or 0 for s in sales)
     total_paid = sum(s.paid_amount or 0 for s in sales)
     total_debt = sum(s.debt_amount or 0 for s in sales)
-    total_profit = 0.0
+    total_cost_of_sales = 0.0
     prod_totals = {}
     for sale in sales:
         for item in sale.items:
@@ -680,12 +680,13 @@ def generate_daily_box_pdf(db: Session, box_date_str: str, company_id: int):
             qty = item.quantity or 0
             price = p.price or 0
             cost = p.cost_price or 0
-            total_profit += (price - cost) * qty
+            total_cost_of_sales += cost * qty
             if p.name not in prod_totals:
                 prod_totals[p.name] = {"qty": 0, "revenue": 0, "profit": 0}
             prod_totals[p.name]["qty"] += qty
             prod_totals[p.name]["revenue"] += price * qty
             prod_totals[p.name]["profit"] += (price - cost) * qty
+    total_profit = total_sales_amt - total_cost_of_sales
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,

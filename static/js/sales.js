@@ -26,6 +26,12 @@ let errorModal;
 let loader;
 let paymentMethod;
 let initialPayment;
+let discountType;
+let discountValue;
+let discountRow;
+let discountLabel;
+let discountDisplay;
+let discountHint;
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', () => {
@@ -49,7 +55,14 @@ document.addEventListener('DOMContentLoaded', () => {
     loader = document.getElementById('loader');
     paymentMethod = document.getElementById('payment-method');
     initialPayment = document.getElementById('initial-payment');
-    
+    discountType = document.getElementById('discount-type');
+    discountValue = document.getElementById('discount-value');
+    discountRow = document.getElementById('discount-row');
+    discountLabel = document.getElementById('discount-label');
+    discountDisplay = document.getElementById('discount-display');
+    discountHint = document.getElementById('discount-hint');
+    setupDiscountHint();
+
     console.log('✅ DOM Elements initialized successfully');
     console.log('   completeSaleBtn:', completeSaleBtn);
     
@@ -82,6 +95,16 @@ function setupEventListeners() {
     addProductBtn.addEventListener('click', addProductToCart);
     clearCartBtn.addEventListener('click', clearCart);
     completeSaleBtn.addEventListener('click', completeSale);
+
+    // Descuento
+    discountType.addEventListener('change', () => {
+        discountValue.disabled = discountType.value === 'none';
+        if (discountType.value === 'none') {
+            discountValue.value = '';
+        }
+        updateTotals();
+    });
+    discountValue.addEventListener('input', updateTotals);
 
     // Tecla Enter en cantidad
     productQuantity.addEventListener('keypress', (e) => {
@@ -334,6 +357,34 @@ function removeFromCart(index) {
     updateCompleteButton();
 }
 
+// TOPE DE DESCUENTO PARA CAJERO (debe coincidir con CAJERO_MAX_DISCOUNT_PERCENT en el backend)
+const CAJERO_MAX_DISCOUNT_PERCENT = 15.0;
+
+function setupDiscountHint() {
+    if (!discountHint) return;
+    const isCajero = localStorage.getItem('user_role') === 'cajero';
+    discountHint.textContent = isCajero
+        ? `Como cajero podés aplicar hasta ${CAJERO_MAX_DISCOUNT_PERCENT}% de descuento`
+        : '';
+}
+
+// Calcula el monto de descuento a partir del tipo/valor cargados y el subtotal
+function getDiscountAmount(subtotal) {
+    const type = discountType ? discountType.value : 'none';
+    const value = parseFloat(discountValue ? discountValue.value : 0) || 0;
+
+    if (type === 'none' || value <= 0 || subtotal <= 0) {
+        return 0;
+    }
+
+    if (type === 'percent') {
+        return subtotal * Math.min(value, 100) / 100;
+    }
+
+    // Monto fijo, nunca más que el subtotal
+    return Math.min(value, subtotal);
+}
+
 // ACTUALIZAR TOTALES
 function updateTotals() {
     let subtotal = 0;
@@ -344,9 +395,25 @@ function updateTotals() {
         itemCount += item.quantity;
     });
 
+    const discountAmount = getDiscountAmount(subtotal);
+    const total = subtotal - discountAmount;
+
     subtotalSpan.textContent = `$${subtotal.toFixed(2)}`;
     itemCountSpan.textContent = itemCount;
-    totalPriceSpan.textContent = `$${subtotal.toFixed(2)}`;
+    totalPriceSpan.textContent = `$${total.toFixed(2)}`;
+
+    if (discountRow) {
+        if (discountAmount > 0) {
+            discountRow.style.display = 'flex';
+            const type = discountType ? discountType.value : 'none';
+            discountLabel.textContent = type === 'percent'
+                ? `Descuento (${discountValue.value}%)`
+                : 'Descuento';
+            discountDisplay.textContent = `-$${discountAmount.toFixed(2)}`;
+        } else {
+            discountRow.style.display = 'none';
+        }
+    }
 }
 
 // LIMPIAR CARRITO
@@ -391,6 +458,13 @@ async function completeSale() {
         })),
         initial_payment: initialPaymentAmount
     };
+
+    const discAmount = parseFloat(discountValue ? discountValue.value : 0) || 0;
+    if (discountType && discountType.value === 'percent' && discAmount > 0) {
+        saleData.discount_percent = discAmount;
+    } else if (discountType && discountType.value === 'fixed' && discAmount > 0) {
+        saleData.discount_amount = discAmount;
+    }
 
     try {
         showLoader(true);
@@ -593,6 +667,16 @@ function generateTicketHTML(saleDetails) {
         </div>
         
         <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px dashed #333;">
+            ${(saleDetails.discount_amount || 0) > 0 ? `
+            <div style="display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.95rem; color: #666;">
+                <span>Subtotal:</span>
+                <span>$${(saleDetails.subtotal_amount || 0).toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.95rem; color: #059669;">
+                <span>Descuento${saleDetails.discount_percent ? ` (${saleDetails.discount_percent}%)` : ''}:</span>
+                <span>-$${(saleDetails.discount_amount || 0).toFixed(2)}</span>
+            </div>
+            ` : ''}
             <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; font-size: 1.2rem; font-weight: bold;">
                 <span>TOTAL:</span>
                 <span>$${(saleDetails.total_amount || 0).toFixed(2)}</span>
@@ -632,6 +716,11 @@ function resetSaleForm() {
     productQuantity.value = '1';
     initialPayment.value = '0';
     paymentMethod.value = 'efectivo';
+    if (discountType) discountType.value = 'none';
+    if (discountValue) {
+        discountValue.value = '';
+        discountValue.disabled = true;
+    }
     renderCart();
     updateCompleteButton();
 }

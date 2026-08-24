@@ -190,6 +190,52 @@ def migrate_add_user_role():
             print(f"   [WARNING] Error backfilling users role: {str(e)}")
 
 
+def migrate_add_sale_discount_fields():
+    """
+    Adds subtotal_amount / discount_percent / discount_amount to sales, para
+    poder aplicar descuentos en la venta. Las ventas existentes (creadas
+    antes de esta migración) no tenían descuento: se backfillea
+    subtotal_amount = total_amount y discount_amount = 0.
+    """
+    from app.db.database import engine
+
+    inspector = inspect(engine)
+
+    if 'sales' not in inspector.get_table_names():
+        return
+
+    columns = [col['name'] for col in inspector.get_columns('sales')]
+    migrations = [
+        ('subtotal_amount', 'FLOAT'),
+        ('discount_percent', 'FLOAT'),
+        ('discount_amount', 'FLOAT'),
+    ]
+
+    with engine.begin() as conn:
+        for column_name, column_type in migrations:
+            if column_name in columns:
+                continue
+            print(f"[MIGRATION] Migrating table 'sales': adding column '{column_name}'...")
+            try:
+                conn.execute(text(
+                    f"ALTER TABLE sales ADD COLUMN {column_name} {column_type}"
+                ))
+                print(f"   [OK] Column '{column_name}' added to 'sales'")
+            except Exception as e:
+                if "duplicate column name" not in str(e).lower():
+                    print(f"   [WARNING] Error adding '{column_name}' to 'sales': {str(e)}")
+
+        try:
+            result = conn.execute(text(
+                "UPDATE sales SET subtotal_amount = total_amount, discount_amount = 0 "
+                "WHERE subtotal_amount IS NULL"
+            ))
+            if result.rowcount:
+                print(f"   [OK] {result.rowcount} venta(s) existente(s) marcada(s) sin descuento")
+        except Exception as e:
+            print(f"   [WARNING] Error backfilling sales discount fields: {str(e)}")
+
+
 def run_all_migrations():
     """
     Runs all necessary migrations
@@ -202,6 +248,7 @@ def run_all_migrations():
         migrate_add_sale_cancellation_fields()
         migrate_add_purchase_debt_fields()
         migrate_add_user_role()
+        migrate_add_sale_discount_fields()
         print("\n[OK] All migrations completed successfully!\n")
     except Exception as e:
         print(f"[ERROR] Migration failed: {str(e)}")

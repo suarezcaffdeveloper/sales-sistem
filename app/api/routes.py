@@ -243,9 +243,9 @@ def update_customer_route(customer_id: int, customer: CustomerCreate, user_info:
 @protected_router.post("/sales", response_model=SaleResponse)
 def create_new_sale(sale: SaleCreate, user_info: dict = Depends(get_current_user_with_company), db: Session = Depends(get_db)):
     try:
-        return create_sale(db, sale, user_info["company_id"])
+        return create_sale(db, sale, user_info["company_id"], user_info["role"])
     except Exception as e:
-        raise HTTPException(status_code=400, detail="Error al procesar la solicitud")
+        raise HTTPException(status_code=400, detail=str(e))
 
 # NOTA: Esta ruta DEBE ir antes de /sales/{sale_id} para que FastAPI no intente interpretar
 # "pending-debts" como un ID numérico

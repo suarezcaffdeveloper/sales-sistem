@@ -107,14 +107,14 @@ def get_daily_box_by_date(db: Session, box_date: str, company_id: int):
     total_sales = sum(s.total_amount for s in sales_data)
     sale_count = len(sales_data)
     
-    # Calcular ganancia del día
-    total_profit = 0.0
+    # Ganancia = lo cobrado (ya con descuento, via total_amount) - costo de lo vendido
+    total_cost = 0.0
     for sale in sales_data:
         for item in sale.items:
             product = item.product
-            profit = (product.price - (product.cost_price or 0)) * item.quantity
-            total_profit += profit
-    
+            total_cost += (product.cost_price or 0) * item.quantity
+    total_profit = total_sales - total_cost
+
     return {
         "id": box.id,
         "date": box.date,
@@ -153,14 +153,14 @@ def get_daily_box_details_by_id(db: Session, box_id: int, company_id: int):
     total_sales = sum(s.total_amount for s in sales_data)
     sale_count = len(sales_data)
     
-    # Calcular ganancia
-    total_profit = 0.0
+    # Ganancia = lo cobrado (ya con descuento, via total_amount) - costo de lo vendido
+    total_cost = 0.0
     for sale in sales_data:
         for item in sale.items:
             product = item.product
-            profit = (product.price - (product.cost_price or 0)) * item.quantity
-            total_profit += profit
-    
+            total_cost += (product.cost_price or 0) * item.quantity
+    total_profit = total_sales - total_cost
+
     return {
         "id": box.id,
         "date": box.date,

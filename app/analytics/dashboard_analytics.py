@@ -70,16 +70,14 @@ def get_dashboard_stats_pandas(db, company_id):
         })
     items_df = pd.DataFrame(items_data)
 
-    # Costo invertido y ganancia total
+    # Costo invertido (no cambia con descuentos: el costo del producto es el mismo)
     if not items_df.empty:
         items_df["revenue"] = items_df["price"] * items_df["quantity"]
         items_df["cost"] = items_df["cost_price"].fillna(0) * items_df["quantity"]
         items_df["profit"] = (items_df["price"] - items_df["cost_price"].fillna(0)) * items_df["quantity"]
         total_cost_invested = float(items_df["cost"].sum())
-        total_profit = float(items_df["profit"].sum())
     else:
         total_cost_invested = 0.0
-        total_profit = 0.0
 
     # Productos más y menos vendidos
     if not items_df.empty:
@@ -147,8 +145,12 @@ def get_dashboard_stats_pandas(db, company_id):
                 "debt_amount": debt
             })
 
-    # Total ventas
+    # Total ventas (ya refleja descuentos: total_amount es el monto post-descuento)
     total_sales = float(sum([s.get("total_amount", 0) for s in active_sales])) if active_sales else 0.0
+
+    # Ganancia real = lo que efectivamente se cobró (con descuentos aplicados) - costo de lo vendido.
+    # No se usa la suma de "profit" por ítem porque esa ignora el descuento a nivel venta.
+    total_profit = total_sales - total_cost_invested
 
     return {
         "total_sales": total_sales,
@@ -485,29 +487,29 @@ def get_pending_debts_pandas(
         }
     
 def get_total_profit_pandas_fast(db, company_id: int):
-    """Calcula la ganancia total usando ORM + pandas."""
+    """
+    Calcula la ganancia total: ventas efectivamente cobradas (ya con
+    descuentos aplicados, vía Sale.total_amount) menos el costo de los
+    productos vendidos.
+    """
     from app.models.sale import Sale
     from app.models.sale_item import SaleItem
-    from app.models.product import Product
     from sqlalchemy.orm import joinedload
-    import pandas as pd
     try:
-        sale_items = (
-            db.query(SaleItem)
-            .join(Product)
-            .join(Sale, Sale.id == SaleItem.sale_id)
-            .filter(Product.company_id == company_id, Sale.cancelled_at.is_(None))
-            .options(joinedload(SaleItem.product))
+        sales = (
+            db.query(Sale)
+            .filter(Sale.company_id == company_id, Sale.cancelled_at.is_(None))
+            .options(joinedload(Sale.items).joinedload(SaleItem.product))
             .all()
         )
-        if not sale_items:
+        if not sales:
             return 0.0
-        total = sum(
-            (item.product.price or 0) * (item.quantity or 0)
-            - (item.product.cost_price or 0) * (item.quantity or 0)
-            for item in sale_items if item.product
+        total_revenue = sum(sale.total_amount or 0 for sale in sales)
+        total_cost = sum(
+            (item.product.cost_price or 0) * (item.quantity or 0)
+            for sale in sales for item in sale.items if item.product
         )
-        return float(total)
+        return float(total_revenue - total_cost)
     except Exception:
         return 0.0
 
@@ -860,14 +862,16 @@ def get_sales_chart_with_growth(db, company_id: int, start_date, end_date, group
         prev_sales = fetch_period(prev_start, prev_end)
 
         def calc_totals(sales):
+            # total ya refleja descuentos (Sale.total_amount); el costo no
+            # cambia con el descuento, así que profit = total - costo.
             total = sum(s.total_amount or 0 for s in sales)
-            profit = 0.0
+            cost = 0.0
             for sale in sales:
                 for item in sale.items:
                     p = item.product
                     if p:
-                        profit += (p.price - (p.cost_price or 0)) * (item.quantity or 0)
-            return total, profit
+                        cost += (p.cost_price or 0) * (item.quantity or 0)
+            return total, total - cost
 
         curr_sales_total, curr_profit = calc_totals(current_sales)
         prev_sales_total, prev_profit = calc_totals(prev_sales)
@@ -895,14 +899,14 @@ def get_sales_chart_with_growth(db, company_id: int, start_date, end_date, group
         # Construir DataFrame por período
         rows = []
         for sale in current_sales:
-            profit_sale = sum(
-                (item.product.price - (item.product.cost_price or 0)) * (item.quantity or 0)
+            cost_sale = sum(
+                (item.product.cost_price or 0) * (item.quantity or 0)
                 for item in sale.items if item.product
             )
             rows.append({
                 "created_at": sale.created_at,
                 "total_amount": sale.total_amount or 0,
-                "profit": profit_sale,
+                "profit": (sale.total_amount or 0) - cost_sale,
                 "id": sale.id
             })
 
@@ -989,11 +993,17 @@ def get_business_insights(db, company_id: int):
             return []
 
         # ── Participación de productos en ganancias ──
+        # product_profits/product_revenues quedan a precio de lista (no se
+        # prorratea el descuento por ítem); total_revenue/total_profit sí
+        # reflejan el descuento porque salen de Sale.total_amount, así que
+        # son los correctos para "ticket promedio" y "margen de ganancia".
         product_profits = {}
         product_revenues = {}
         total_profit = 0.0
         total_revenue = 0.0
         for sale in sales:
+            total_revenue += sale.total_amount or 0
+            sale_cost = 0.0
             for item in sale.items:
                 p = item.product
                 if not p:
@@ -1005,8 +1015,8 @@ def get_business_insights(db, company_id: int):
                 revenue = price * qty
                 product_profits[p.name] = product_profits.get(p.name, 0) + profit
                 product_revenues[p.name] = product_revenues.get(p.name, 0) + revenue
-                total_profit += profit
-                total_revenue += revenue
+                sale_cost += cost * qty
+            total_profit += (sale.total_amount or 0) - sale_cost
 
         if product_profits and total_profit > 0:
             top_name = max(product_profits, key=product_profits.get)

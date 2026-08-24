@@ -117,6 +117,10 @@
                     <span>Cantidad de ítems</span>
                     <span id="item-count">0</span>
                 </div>
+                <div class="total-row" id="discount-row" style="display: none; color: var(--success);">
+                    <span id="discount-label">Descuento</span>
+                    <span id="discount-display">-$0.00</span>
+                </div>
                 <div class="total-row total">
                     <span>Total</span>
                     <span id="total-price">$0.00</span>
@@ -124,6 +128,21 @@
             </div>
 
             <div class="divider"></div>
+
+            <div style="background: var(--navy-3); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+                <div class="form-group" style="margin-bottom: 0.875rem;">
+                    <label for="discount-type">Descuento <span style="color: var(--text-3); font-weight: 400;">(opcional)</span></label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <select id="discount-type" style="flex: 0 0 40%;">
+                            <option value="none">Sin descuento</option>
+                            <option value="percent">%</option>
+                            <option value="fixed">$ fijo</option>
+                        </select>
+                        <input type="number" id="discount-value" placeholder="0" min="0" step="0.01" style="flex: 1;" disabled>
+                    </div>
+                    <small id="discount-hint" style="color: var(--text-3); display: block; margin-top: 0.375rem;"></small>
+                </div>
+            </div>
 
             <div style="background: var(--navy-3); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
                 <div class="form-group" style="margin-bottom: 0.875rem;">

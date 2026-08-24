@@ -8,7 +8,10 @@ class Sale(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
-    total_amount = Column(Float)  # Total de la venta
+    subtotal_amount = Column(Float)  # Suma de items antes del descuento
+    total_amount = Column(Float)  # Total de la venta (subtotal - descuento)
+    discount_percent = Column(Float, nullable=True)  # Si el descuento se cargó como %, para mostrarlo
+    discount_amount = Column(Float, default=0)  # Monto de descuento en $, siempre poblado
     paid_amount = Column(Float, default=0)  # Monto pagado
     debt_amount = Column(Float, default=0)  # Monto pendiente
     status = Column(String, default="pendiente")  # "pagado", "parcial", "pendiente"

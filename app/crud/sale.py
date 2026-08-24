@@ -7,14 +7,53 @@ from sqlalchemy import desc
 from datetime import datetime
 from app.crud.daily_box import get_current_daily_box
 
-def create_sale(db: Session, sale_data: SaleCreate, company_id: int):
-    total_amount = 0
+# Tope de descuento que puede aplicar un cajero sin ser admin. El admin no
+# tiene tope. Ver deps.require_admin para el resto de los permisos por rol.
+CAJERO_MAX_DISCOUNT_PERCENT = 15.0
+
+
+def _calculate_discount(subtotal_amount: float, sale_data: SaleCreate, role: str) -> tuple[float, float]:
+    """
+    Calcula el descuento a aplicar sobre una venta y devuelve
+    (discount_amount, discount_percent_para_mostrar).
+    Valida que no se hayan mandado los dos tipos de descuento juntos, que
+    no exceda el subtotal, y que un cajero no supere su tope permitido.
+    """
+    discount_percent = sale_data.discount_percent
+    discount_amount = sale_data.discount_amount
+
+    if discount_percent and discount_amount:
+        raise Exception("Elegí un solo tipo de descuento: porcentaje o monto fijo, no ambos")
+
+    if discount_percent:
+        computed_amount = subtotal_amount * discount_percent / 100
+        effective_percent = discount_percent
+    elif discount_amount:
+        computed_amount = discount_amount
+        effective_percent = (discount_amount / subtotal_amount * 100) if subtotal_amount > 0 else 0
+    else:
+        return 0.0, None
+
+    if computed_amount > subtotal_amount:
+        raise Exception("El descuento no puede ser mayor al subtotal de la venta")
+
+    if role == "cajero" and effective_percent > CAJERO_MAX_DISCOUNT_PERCENT:
+        raise Exception(
+            f"Como cajero podés aplicar hasta {CAJERO_MAX_DISCOUNT_PERCENT:.0f}% de descuento. "
+            f"Para más, pedile a un administrador que complete la venta."
+        )
+
+    return float(computed_amount), (float(discount_percent) if discount_percent else None)
+
+
+def create_sale(db: Session, sale_data: SaleCreate, company_id: int, role: str = "admin"):
+    subtotal_amount = 0
     sale_items = []
-    
+
     print(f"📝 Iniciando creación de venta para cliente {sale_data.customer_id}")
     print(f"   Items: {len(sale_data.items)}, Pago inicial: {sale_data.initial_payment}")
 
-    # 🔍 1. Validar stock + calcular total
+    # 🔍 1. Validar stock + calcular subtotal
     for item in sale_data.items:
         product = db.query(Product).filter(
             Product.id == item.product_id,
@@ -27,12 +66,15 @@ def create_sale(db: Session, sale_data: SaleCreate, company_id: int):
         if product.stock < item.quantity:
             raise Exception(f"Stock insuficiente para {product.name} (disponible: {product.stock}, solicitado: {item.quantity})")
 
-        total_amount += product.price * item.quantity
+        subtotal_amount += product.price * item.quantity
 
         sale_items.append({
             "product": product,
             "quantity": item.quantity
         })
+
+    discount_amount, discount_percent = _calculate_discount(subtotal_amount, sale_data, role)
+    total_amount = subtotal_amount - discount_amount
 
     # Validar pago inicial - pero SOLO para validación, no para guardar aquí
     initial_payment = sale_data.initial_payment or 0
@@ -48,7 +90,10 @@ def create_sale(db: Session, sale_data: SaleCreate, company_id: int):
         company_id=company_id,
         customer_id=sale_data.customer_id,
         daily_box_id=daily_box_id,
+        subtotal_amount=float(subtotal_amount),
         total_amount=float(total_amount),
+        discount_percent=discount_percent,
+        discount_amount=float(discount_amount),
         paid_amount=0.0,  # Siempre 0 aquí, será actualizado por pagos
         debt_amount=float(total_amount),  # Inicialmente es el total
         status="pendiente"  # Siempre pendiente al crear
@@ -177,7 +222,10 @@ def get_sale_details(db: Session, sale_id: int, company_id: int):
         "customer_phone": customer_phone,
         "created_at": sale.created_at,
         "items": items_detail,
+        "subtotal_amount": float(sale.subtotal_amount) if sale.subtotal_amount is not None else float(sale.total_amount),
         "total_amount": float(sale.total_amount),
+        "discount_percent": float(sale.discount_percent) if sale.discount_percent else None,
+        "discount_amount": float(sale.discount_amount) if sale.discount_amount else 0.0,
         "paid_amount": float(sale.paid_amount) if sale.paid_amount else 0.0,
         "debt_amount": float(sale.debt_amount) if sale.debt_amount else 0.0,
         "status": sale.status or "pendiente",
@@ -209,7 +257,10 @@ def get_all_sales(db: Session, company_id: int):
             "customer_name": customer_name,
             "customer_phone": customer_phone,
             "created_at": sale.created_at,
+            "subtotal_amount": sale.subtotal_amount if sale.subtotal_amount is not None else sale.total_amount,
             "total_amount": sale.total_amount,
+            "discount_percent": sale.discount_percent,
+            "discount_amount": sale.discount_amount or 0.0,
             "paid_amount": sale.paid_amount,
             "debt_amount": sale.debt_amount,
             "status": sale.status,
