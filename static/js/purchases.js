@@ -370,7 +370,8 @@ function completePurchase() {
     showConfirm(
         `¿Confirmás la compra a ${selectedSupplier.name} por un total de ${total}?`,
         submitPurchase,
-        'Confirmar compra'
+        'Confirmar compra',
+        'success'
     );
 }
 
@@ -819,9 +820,21 @@ function closeErrorModal() {
 
 let confirmActionCallback = null;
 
-function showConfirm(message, onConfirm, acceptLabel = 'Confirmar') {
+// Ícono/botón según el tipo de acción: 'danger' (destructiva, irreversible) o
+// 'success' (acción positiva que el usuario efectivamente quiere hacer).
+const CONFIRM_ICON_SVG = {
+    danger: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    success: '✓'
+};
+
+function showConfirm(message, onConfirm, acceptLabel = 'Confirmar', variant = 'danger') {
     document.getElementById('confirm-message').textContent = message;
-    document.getElementById('confirm-accept-btn').textContent = acceptLabel;
+    const acceptBtn = document.getElementById('confirm-accept-btn');
+    acceptBtn.textContent = acceptLabel;
+    acceptBtn.className = variant === 'success' ? 'btn btn-success' : 'btn btn-danger-solid';
+    const icon = document.getElementById('confirm-icon');
+    icon.className = variant === 'success' ? 'modal-icon success' : 'modal-icon danger';
+    icon.innerHTML = CONFIRM_ICON_SVG[variant] || CONFIRM_ICON_SVG.danger;
     confirmActionCallback = onConfirm;
     document.getElementById('confirm-modal').classList.remove('hidden');
 }
